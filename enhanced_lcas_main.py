@@ -30,6 +30,9 @@ try:
 except ImportError:
     AI_AVAILABLE = False
     logging.warning("AI Foundation Plugin not available - install dependencies or check ai_foundation_plugin.py")
+    from enhanced_analysis_engine import EnhancedAnalysisEngine
+    from file_preservation_module import FilePreservationManager
+
 
 # Configure logging
 logging.basicConfig(
@@ -364,7 +367,7 @@ class LCASCore:
             except Exception as e:
                 logger.error(f"AI plugin initialization failed: {e}")
                 self.ai_plugin = None
-        
+       
         # Ensure target directory exists
         Path(self.config.target_directory).mkdir(parents=True, exist_ok=True)
         
@@ -432,10 +435,14 @@ class LCASCore:
         # Extract basic information
         analysis = self.extract_basic_info(file_path)
         
-        # Preserve original file
-        preserved_path = self.preserve_original_file(file_path)
-        if preserved_path:
-            analysis.preserved_path = preserved_path
+        # ADD THESE NEW COMPONENTS
+        # File Preservation System
+        self.preservation_manager = FilePreservationManager(config)
+        
+        # Enhanced Analysis Engine
+        self.analysis_engine = EnhancedAnalysisEngine(config, self.ai_plugin)
+        
+        logger.info("✅ Enhanced LCAS v4.0 components initialized")
         
         # Check for duplicates
         if analysis.file_hash in self.file_hashes:
@@ -496,29 +503,101 @@ class LCASCore:
         else:
             analysis.processing_method = "basic"
         
-        # Fallback to basic analysis if AI didn't work
-        if not analysis.ai_analysis:
-            # Basic categorization
-            category, subcategory, confidence = self.categorize_file(analysis)
-            analysis.category = category
-            analysis.subcategory = subcategory
-            analysis.confidence_score = confidence
-            
-            # Basic scoring
-            analysis = self.calculate_legal_scores(analysis)
+        def run_complete_analysis(self):
+    """Enhanced analysis pipeline with preservation and advanced analysis"""
+    logger.info("🚀 Starting Enhanced LCAS v4.0 analysis pipeline...")
+    
+    try:
+        # STEP 1: File Preservation (NEW)
+        logger.info("📦 Step 1: Preserving evidence files...")
+        print("📦 Step 1: Preserving evidence files...")
         
-        # Generate standardized name
-        analysis.new_name = self.generate_standardized_name(analysis)
+        def preservation_progress(current, total, result):
+            if current % 10 == 0 or current == total:  # Log every 10 files
+                print(f"   Preserving {current}/{total}: {Path(result.source_path).name}")
         
-        # Check if human review needed
-        if (analysis.confidence_score < self.config.min_relevance_score or 
-            analysis.overall_impact < self.config.min_probative_score or
-            len(analysis.processing_errors) > 0):
-            analysis.requires_human_review = True
-            if not analysis.category.endswith("HUMAN_REVIEW"):
-                analysis.category = "09_FOR_HUMAN_REVIEW"
+        preservation_result = self.preservation_manager.preserve_evidence_files(preservation_progress)
         
-        return analysis
+        if not preservation_result["success"]:
+            raise Exception(f"File preservation failed: {preservation_result.get('error')}")
+        
+        print(f"   ✅ Preserved {preservation_result['preserved_files']} files ({preservation_result['total_size_mb']} MB)")
+        
+        # STEP 2: Enhanced File Analysis (ENHANCED)
+        logger.info("🧠 Step 2: Running enhanced analysis...")
+        print("🧠 Step 2: Running enhanced analysis...")
+        
+        # Get preserved files from originals folder
+        preserved_files_path = Path(self.config.target_directory) / "00_PRESERVED_ORIGINALS"
+        preserved_files = list(preserved_files_path.rglob("*"))
+        preserved_files = [f for f in preserved_files if f.is_file()]
+        
+        if not preserved_files:
+            logger.warning("No preserved files found for analysis")
+            preserved_files = self.discover_files()  # Fallback to your existing method
+        
+        print(f"   Found {len(preserved_files)} files for analysis")
+        
+        # Enhanced analysis with progress tracking
+        def analysis_progress(current, total, result):
+            if current % 5 == 0 or current == total:
+                print(f"   Analyzing {current}/{total}: {Path(result.file_path).name}")
+        
+        analysis_results = self.analysis_engine.analyze_batch_files(
+            preserved_files,
+            analysis_progress
+        )
+        
+        print(f"   ✅ Analyzed {len(analysis_results)} files")
+        
+        # STEP 3: Semantic Clustering (NEW)
+        logger.info("🔗 Step 3: Performing semantic clustering...")
+        print("🔗 Step 3: Performing semantic clustering...")
+        
+        cluster_results = self.analysis_engine.perform_semantic_clustering()
+        cluster_count = len(set(cluster_results.values())) if cluster_results else 0
+        print(f"   ✅ Created {cluster_count} semantic clusters")
+        
+        # STEP 4: File Relationships (NEW)
+        logger.info("🕸️ Step 4: Calculating file relationships...")
+        print("🕸️ Step 4: Calculating file relationships...")
+        
+        relationship_results = self.analysis_engine.calculate_file_relationships()
+        total_relationships = sum(len(rels) for rels in relationship_results.values())
+        print(f"   ✅ Found {total_relationships} file relationships")
+        
+        # STEP 5: Generate Folder Indexes (ENHANCED)
+        logger.info("📊 Step 5: Generating enhanced folder analysis...")
+        print("📊 Step 5: Generating enhanced folder analysis...")
+        
+        self._generate_enhanced_folder_indexes()
+        
+        # STEP 6: Save Comprehensive Results (NEW)
+        logger.info("💾 Step 6: Saving comprehensive results...")
+        print("💾 Step 6: Saving comprehensive results...")
+        
+        self.analysis_engine.save_analysis_results()
+        self.save_analysis_results()  # Your existing method too
+        
+        # STEP 7: Generate Enhanced Reports (NEW)
+        self._generate_enhanced_reports()
+        
+        print("🎉 Enhanced LCAS v4.0 analysis completed successfully!")
+        logger.info("Enhanced LCAS analysis pipeline completed successfully")
+        
+        return {
+            "success": True,
+            "preservation_result": preservation_result,
+            "analysis_count": len(analysis_results),
+            "cluster_count": cluster_count,
+            "relationship_count": total_relationships
+        }
+        
+    except Exception as e:
+        error_msg = f"Enhanced analysis failed: {e}"
+        logger.error(error_msg)
+        print(f"❌ {error_msg}")
+        raise
     
     async def _process_ai_results(self, analysis: FileAnalysis, 
                                 ai_results: Dict[str, AIAnalysisResult]):
@@ -572,8 +651,95 @@ class LCASCore:
                              for ai_result in ai_results.values())
             await self.ai_rate_limiter.record_usage(total_tokens, total_cost)
     
-    def _map_ai_category_to_folder(self, ai_category: str) -> str:
-        """Map AI-generated categories to folder structure"""
+    def _generate_enhanced_folder_indexes(self):
+        """Generate enhanced analysis index for each folder"""
+        logger.info("Generating enhanced folder indexes...")
+        
+        folders = [
+            "01_CASE_SUMMARIES_AND_RELATED_DOCS",
+            "02_CONSTITUTIONAL_VIOLATIONS", 
+            "03_ELECTRONIC_ABUSE",
+            "04_FRAUD_ON_THE_COURT",
+            "05_NON_DISCLOSURE_FC2107_FC2122",
+            "06_PD065288_COURT_RECORD_DOCS",
+            "07_POST_TRIAL_ABUSE",
+            "08_TEXT_MESSAGES",
+            "09_FOR_HUMAN_REVIEW"
+        ]
+        
+        for folder_name in folders:
+            folder_path = Path(self.config.target_directory) / folder_name
+            if folder_path.exists():
+                try:
+                    # Generate enhanced index using analysis engine
+                    index = self.analysis_engine.generate_folder_analysis_index(folder_path)
+                    
+                    # Save enhanced index file
+                    index_file = folder_path / "_ENHANCED_FOLDER_ANALYSIS.json"
+                    with open(index_file, 'w', encoding='utf-8') as f:
+                        json.dump(index, f, indent=2, ensure_ascii=False)
+                    
+                    # Also save markdown version for readability
+                    self._create_enhanced_markdown_index(folder_path, index)
+                    
+                    logger.info(f"Enhanced index created for {folder_name}")
+                    
+                except Exception as e:
+                    logger.error(f"Failed to create enhanced index for {folder_name}: {e}")
+    
+    def _create_enhanced_markdown_index(self, folder_path: Path, index_data: Dict):
+        """Create human-readable markdown index"""
+        
+        markdown_file = folder_path / "_FOLDER_SUMMARY.md"
+        
+        content = f"""# {folder_path.name.replace('_', ' ').title()}
+
+## 📊 Folder Statistics
+- **Total Files**: {index_data.get('summary_statistics', {}).get('total_files', 0)}
+- **Total Size**: {index_data.get('summary_statistics', {}).get('total_size_mb', 0)} MB
+- **Average Legal Relevance**: {index_data.get('summary_statistics', {}).get('average_legal_relevance', 0):.3f}
+- **Average Probative Value**: {index_data.get('summary_statistics', {}).get('average_probative_value', 0):.3f}
+
+## 🏷️ Top Named Entities
+"""
+        
+        for entity, count in index_data.get('top_entities', [])[:10]:
+            content += f"- **{entity}**: {count} mentions\n"
+        
+        content += "\n## 🔑 Top Key Phrases\n"
+        for phrase, count in index_data.get('top_key_phrases', [])[:10]:
+            content += f"- **{phrase}**: {count} occurrences\n"
+        
+        content += "\n## ⚖️ Top Legal Arguments\n"
+        for argument, count in index_data.get('top_legal_arguments', [])[:5]:
+            content += f"- **{argument}**: {count} supporting files\n"
+        
+        content += f"\n## 📁 File Details\n"
+        for file_detail in index_data.get('file_details', []):
+            content += f"""
+### {file_detail['file_name']}
+- **Size**: {file_detail['file_size']} bytes
+- **Legal Relevance**: {file_detail['legal_relevance']:.3f}
+- **Probative Value**: {file_detail['probative_value']:.3f}
+- **Semantic Cluster**: {file_detail['semantic_cluster']}
+- **Summary**: {file_detail['content_summary']}
+"""
+        
+        with open(markdown_file, 'w', encoding='utf-8') as f:
+            f.write(content)
+    
+    def _generate_enhanced_reports(self):
+        """Generate comprehensive enhanced reports"""
+        reports_dir = Path(self.config.target_directory) / "10_VISUALIZATIONS_AND_REPORTS"
+        reports_dir.mkdir(exist_ok=True)
+        
+        # Enhanced Analysis Summary Report
+        summary_report = self.analysis_engine.generate_analysis_summary_report()
+        summary_file = reports_dir / "enhanced_analysis_summary.md"
+        with open(summary_file, 'w', encoding='utf-8') as f:
+            f.write(summary_report)
+        
+        logger.info("Enhanced reports generated successfully")
         # This would be more sophisticated in practice
         category_mapping = {
             "financial_evidence": "02_FINANCIAL_EVIDENCE",
