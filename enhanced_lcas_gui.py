@@ -17,6 +17,8 @@ from dataclasses import dataclass, asdict
 import logging
 import time
 from datetime import datetime
+from gui_preservation_integration import add_preservation_to_gui
+from analysis_engine_gui import add_analysis_engine_to_gui
 
 # Configure CustomTkinter appearance
 ctk.set_appearance_mode("dark")
@@ -337,6 +339,31 @@ class EnhancedLCASMainWindow(ctk.CTk):
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
         
+    def create_enhanced_interface(self):
+        """Create enhanced interface with new v4.0 components"""
+        
+        # Your existing GUI code here...
+        
+        # ADD THIS: File Preservation GUI
+        preservation_label = ctk.CTkLabel(
+            self.main_frame,
+            text="Enhanced LCAS v4.0 Features",
+            font=ctk.CTkFont(size=18, weight="bold")
+        )
+        preservation_label.pack(pady=10)
+        
+        # File Preservation Section
+        self.preservation_gui = add_preservation_to_gui(
+            self.main_frame, 
+            self.config
+        )
+        
+        # Enhanced Analysis Engine Section  
+        self.analysis_gui = add_analysis_engine_to_gui(
+            self.main_frame,
+            self.config, 
+            getattr(self, 'ai_plugin', None)  # Pass AI plugin if available
+        )
         # Create sidebar
         self.create_sidebar()
         
