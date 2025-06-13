@@ -5,7 +5,7 @@ Continuation of the complete GUI implementation
 
 # ... continuing from previous part ...
 
-    def save_configuration(self):
+def save_configuration(self):
         """Save current configuration"""
         try:
             config_data = {
