@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-AI Integration Plugin for LCAS
+AI Integration Plugin for LCAS - Fixed Version
 Provides AI-powered analysis capabilities for legal documents
 """
 
@@ -37,7 +37,7 @@ class AIResponse:
     success: bool
     error: Optional[str] = None
 
-class AIIntegrationPlugin(AnalysisPlugin, UIPlugin):
+class AiIntegrationPlugin(AnalysisPlugin, UIPlugin):
     """Plugin for AI-powered legal document analysis"""
     
     @property
@@ -46,7 +46,7 @@ class AIIntegrationPlugin(AnalysisPlugin, UIPlugin):
     
     @property
     def version(self) -> str:
-        return "1.0.0"
+        return "1.0.1"
     
     @property
     def description(self) -> str:
@@ -100,8 +100,11 @@ class AIIntegrationPlugin(AnalysisPlugin, UIPlugin):
     
     async def analyze(self, data: Any) -> Dict[str, Any]:
         """Perform AI analysis on documents"""
-        if not self.ai_config.enabled or not self.ai_config.api_key:
-            return {"error": "AI integration not configured or disabled"}
+        if not self.ai_config.enabled:
+            return {"error": "AI integration not enabled. Please configure and enable AI analysis first."}
+            
+        if not self.ai_config.api_key:
+            return {"error": "AI API key not configured. Please set your API key in the AI Integration settings."}
         
         source_dir = Path(data.get("source_directory", ""))
         target_dir = Path(data.get("target_directory", ""))
@@ -115,14 +118,17 @@ class AIIntegrationPlugin(AnalysisPlugin, UIPlugin):
         # Find text-based files for analysis
         text_files = []
         for file_path in source_dir.rglob("*"):
-            if file_path.is_file() and file_path.suffix.lower() in ['.txt', '.md', '.doc', '.docx', '.pdf']:
+            if file_path.is_file() and file_path.suffix.lower() in ['.txt', '.md']:
                 text_files.append(file_path)
         
-        # Process files in batches
-        for file_path in text_files[:10]:  # Limit to 10 files for demo
+        if not text_files:
+            return {"error": "No text files found for AI analysis. AI works best with .txt and .md files."}
+        
+        # Process files in batches (limit to 5 for demo)
+        for file_path in text_files[:5]:
             try:
                 file_content = await self._extract_file_content(file_path)
-                if file_content:
+                if file_content and len(file_content.strip()) > 50:  # Only analyze files with substantial content
                     ai_analysis = await self._analyze_with_ai(file_content, file_path.name)
                     if ai_analysis.success:
                         analysis_results[str(file_path.relative_to(source_dir))] = {
@@ -132,6 +138,8 @@ class AIIntegrationPlugin(AnalysisPlugin, UIPlugin):
                             "timestamp": datetime.now().isoformat()
                         }
                         files_processed += 1
+                    else:
+                        self.logger.error(f"AI analysis failed for {file_path}: {ai_analysis.error}")
                     
             except Exception as e:
                 self.logger.error(f"Error analyzing {file_path}: {e}")
@@ -150,17 +158,18 @@ class AIIntegrationPlugin(AnalysisPlugin, UIPlugin):
             "analysis_results": analysis_results,
             "ai_provider": self.ai_config.provider,
             "ai_model": self.ai_config.model,
+            "total_files_found": len(text_files),
             "status": "completed"
         }
     
     async def _extract_file_content(self, file_path: Path) -> str:
         """Extract text content from file"""
         try:
-            if file_path.suffix.lower() == '.txt':
+            if file_path.suffix.lower() in ['.txt', '.md']:
                 with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    return f.read()[:5000]  # Limit content length
-            # For other file types, we'd need additional libraries
-            # This is a simplified implementation
+                    content = f.read()
+                    # Limit content length for API
+                    return content[:8000] if len(content) > 8000 else content
             return ""
         except Exception as e:
             self.logger.error(f"Error extracting content from {file_path}: {e}")
@@ -169,16 +178,17 @@ class AIIntegrationPlugin(AnalysisPlugin, UIPlugin):
     async def _analyze_with_ai(self, content: str, filename: str) -> AIResponse:
         """Analyze content with AI"""
         try:
-            prompt = f"""Analyze this legal document or evidence file and provide:
-1. A brief summary of the content
-2. Key legal concepts or arguments present
-3. Potential relevance to different legal arguments
-4. Notable dates, names, or events mentioned
+            prompt = f"""As a legal analysis AI, analyze this document and provide:
 
-Filename: {filename}
-Content: {content}
+1. SUMMARY: Brief overview of the document's contents
+2. KEY LEGAL CONCEPTS: Important legal terms, arguments, or issues present
+3. RELEVANCE: How this might relate to different legal arguments (fraud, constitutional violations, evidence tampering, etc.)
+4. NOTABLE DETAILS: Important dates, names, events, or facts mentioned
 
-Provide a concise but thorough analysis:"""
+Document: {filename}
+Content: {content[:4000]}
+
+Provide a concise but thorough legal analysis:"""
 
             headers = {
                 "Authorization": f"Bearer {self.ai_config.api_key}",
@@ -188,7 +198,7 @@ Provide a concise but thorough analysis:"""
             payload = {
                 "model": self.ai_config.model,
                 "messages": [
-                    {"role": "system", "content": "You are a legal analysis AI assistant helping organize evidence for court cases."},
+                    {"role": "system", "content": "You are an expert legal analysis AI assistant helping organize evidence for court cases. Focus on identifying key legal concepts, potential arguments, and relevant details."},
                     {"role": "user", "content": prompt}
                 ],
                 "temperature": self.ai_config.temperature,
@@ -210,12 +220,19 @@ Provide a concise but thorough analysis:"""
                         success=True
                     )
                 else:
+                    error_text = f"HTTP {response.status_code}"
+                    try:
+                        error_data = response.json()
+                        error_text = error_data.get("error", {}).get("message", error_text)
+                    except:
+                        pass
+                    
                     return AIResponse(
                         content="",
                         usage={},
                         model=self.ai_config.model,
                         success=False,
-                        error=f"API Error: {response.status_code}"
+                        error=error_text
                     )
                     
         except Exception as e:
@@ -230,8 +247,8 @@ Provide a concise but thorough analysis:"""
     def create_ui_elements(self, parent_widget) -> List[tk.Widget]:
         elements = []
         
-        # Main frame
-        main_frame = ttk.LabelFrame(parent_widget, text="AI Integration")
+        # Main frame with improved styling
+        main_frame = ttk.LabelFrame(parent_widget, text="🤖 AI Integration")
         main_frame.pack(fill=tk.X, padx=5, pady=2)
         
         # Configuration frame
@@ -275,8 +292,8 @@ Provide a concise but thorough analysis:"""
         ttk.Button(action_frame, text="📋 View Results", 
                   command=self.view_ai_results).pack(side=tk.LEFT, padx=2)
         
-        # Status label
-        self.status_label = ttk.Label(main_frame, text="Ready")
+        # Status label with better visibility
+        self.status_label = ttk.Label(main_frame, text="Ready - Configure API key to enable", foreground="orange")
         self.status_label.pack(anchor=tk.W, padx=5, pady=2)
         
         elements.extend([main_frame])
@@ -290,26 +307,33 @@ Provide a concise but thorough analysis:"""
         self.ai_config.enabled = self.enabled_var.get()
         
         self._save_ai_config()
-        self.status_label.config(text="Configuration saved")
+        
+        if self.ai_config.api_key and self.ai_config.enabled:
+            self.status_label.config(text="✅ Configuration saved - AI ready", foreground="green")
+        else:
+            self.status_label.config(text="⚠️ Configuration saved - API key needed", foreground="orange")
         
     def test_connection(self):
         """Test AI connection"""
-        if not self.ai_config.api_key:
+        if not self.api_key_var.get():
             messagebox.showerror("Error", "Please enter API key first")
             return
             
-        self.status_label.config(text="Testing connection...")
+        self.status_label.config(text="Testing connection...", foreground="blue")
         
         async def test_async():
-            result = await self._analyze_with_ai("Test message", "test.txt")
+            # Save current config first
+            self.save_config_ui()
+            
+            result = await self._analyze_with_ai("This is a test message for connection verification.", "test.txt")
             
             def update_ui():
                 if result.success:
-                    self.status_label.config(text="✅ Connection successful")
-                    messagebox.showinfo("Success", "AI connection test successful!")
+                    self.status_label.config(text="✅ Connection successful!", foreground="green")
+                    messagebox.showinfo("Success", "AI connection test successful!\n\nYou can now run AI analysis on your documents.")
                 else:
-                    self.status_label.config(text="❌ Connection failed")
-                    messagebox.showerror("Error", f"Connection failed: {result.error}")
+                    self.status_label.config(text="❌ Connection failed", foreground="red")
+                    messagebox.showerror("Error", f"Connection failed:\n\n{result.error}\n\nPlease check your API key and try again.")
             
             if hasattr(self.core, 'root'):
                 self.core.root.after(0, update_ui)
@@ -326,7 +350,7 @@ Provide a concise but thorough analysis:"""
         report_path = target_dir / "ai_analysis_report.json"
         
         if not report_path.exists():
-            messagebox.showwarning("No Results", "No AI analysis results found. Run AI analysis first.")
+            messagebox.showwarning("No Results", "No AI analysis results found.\n\nRun AI analysis first, or check that:\n1. AI is enabled\n2. API key is configured\n3. Source directory contains .txt files")
             return
         
         # Create popup window
@@ -347,15 +371,15 @@ Provide a concise but thorough analysis:"""
             with open(report_path, 'r') as f:
                 results = json.load(f)
             
-            display_text = "AI ANALYSIS RESULTS\n"
+            display_text = "🤖 AI ANALYSIS RESULTS\n"
             display_text += "=" * 50 + "\n\n"
             
             for file_path, analysis in results.items():
-                display_text += f"File: {file_path}\n"
-                display_text += f"Model: {analysis['model']}\n"
-                display_text += f"Tokens Used: {analysis['tokens_used']}\n"
-                display_text += f"Timestamp: {analysis['timestamp']}\n"
-                display_text += f"\nAnalysis:\n{analysis['summary']}\n"
+                display_text += f"📄 File: {file_path}\n"
+                display_text += f"🤖 Model: {analysis['model']}\n"
+                display_text += f"🔢 Tokens Used: {analysis['tokens_used']}\n"
+                display_text += f"🕒 Timestamp: {analysis['timestamp']}\n"
+                display_text += f"\n📝 Analysis:\n{analysis['summary']}\n"
                 display_text += "-" * 50 + "\n\n"
             
             text_widget.insert(tk.END, display_text)
@@ -369,18 +393,21 @@ Provide a concise but thorough analysis:"""
     
     def run_analysis_ui(self):
         """Run AI analysis from UI"""
-        if not self.ai_config.enabled:
-            messagebox.showwarning("AI Disabled", "Please enable AI analysis first")
+        if not self.enabled_var.get():
+            messagebox.showwarning("AI Disabled", "Please enable AI analysis first:\n\n1. Check 'Enable AI Analysis'\n2. Save configuration\n3. Try again")
             return
             
-        if not self.ai_config.api_key:
-            messagebox.showerror("Error", "Please configure API key first")
+        if not self.api_key_var.get():
+            messagebox.showerror("Error", "Please configure API key first:\n\n1. Enter your OpenAI API key\n2. Save configuration\n3. Test connection\n4. Try again")
             return
             
         if hasattr(self, 'core') and self.core.event_loop:
-            self.status_label.config(text="Running AI analysis...")
+            self.status_label.config(text="🧠 Running AI analysis...", foreground="blue")
             
             async def run_and_update():
+                # Save current config first
+                self.save_config_ui()
+                
                 result = await self.analyze({
                     "source_directory": self.core.config.source_directory,
                     "target_directory": self.core.config.target_directory,
@@ -389,9 +416,16 @@ Provide a concise but thorough analysis:"""
                 
                 def update_ui():
                     if "error" in result:
-                        self.status_label.config(text=f"Error: {result['error']}")
+                        self.status_label.config(text=f"❌ Error: {result['error'][:50]}...", foreground="red")
+                        messagebox.showerror("AI Analysis Error", result['error'])
                     else:
-                        self.status_label.config(text=f"Analyzed {result['files_processed']} files")
+                        processed = result['files_processed']
+                        found = result.get('total_files_found', 0)
+                        self.status_label.config(text=f"✅ Analyzed {processed}/{found} files", foreground="green")
+                        if processed > 0:
+                            messagebox.showinfo("Success", f"AI analysis complete!\n\nAnalyzed {processed} files.\nResults saved to ai_analysis_report.json")
+                        else:
+                            messagebox.showwarning("No Files", "No suitable files found for AI analysis.\n\nAI works best with .txt and .md files containing substantial text content.")
                 
                 if hasattr(self.core, 'root'):
                     self.core.root.after(0, update_ui)
