@@ -5,6 +5,7 @@ Deep visual analysis for evidence discovery and pattern recognition
 """
 
 import base64
+import io
 import logging
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
@@ -31,6 +32,7 @@ class ImageAnalysisResult:
     timestamp_info: List[str]
     metadata: Dict[str, Any]
     confidence_scores: Dict[str, float]
+
 
 class ImageAnalysisPlugin:
     """Plugin for comprehensive image analysis in legal evidence"""
