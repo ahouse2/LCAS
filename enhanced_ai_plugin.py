@@ -1,3 +1,377 @@
+   """
+Enhanced LCAS AI Foundation Plugin - Production Ready
+Includes rate limiting, user configurability, and generalized legal analysis
+"""
+
+import os
+import json
+import asyncio
+import logging
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, asdict, field
+from typing import Dict, List, Any, Optional, Union, Callable
+from pathlib import Path
+import time
+from datetime import datetime
+
+# Core dependencies with better error handling
+try:
+    import openai
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+
+try:
+    import anthropic
+    ANTHROPIC_AVAILABLE = True
+except ImportError:
+    ANTHROPIC_AVAILABLE = False
+
+try:
+    import requests
+    import httpx
+    HTTP_AVAILABLE = True
+except ImportError:
+    HTTP_AVAILABLE = False
+
+logger = logging.getLogger(__name__)
+
+@dataclass
+class AIConfigSettings:
+    """User-configurable AI settings"""
+    # Provider preferences
+    preferred_provider: str = "openai"  # openai, anthropic, local
+    fallback_providers: List[str] = field(default_factory=lambda: ["anthropic", "local"])
+    
+    # Analysis depth and quality
+    analysis_depth: str = "standard"  # basic, standard, comprehensive
+    confidence_threshold: float = 0.6
+    enable_multi_agent: bool = True
+    enable_cross_validation: bool = False  # Multiple agents validate findings
+    
+    # Legal analysis customization
+    case_type: str = "general"  # general, family_law, personal_injury, business, etc.
+    jurisdiction: str = "US_Federal"  # US_Federal, California, NewYork, etc.
+    legal_standards: List[str] = field(default_factory=list)  # Custom legal standards to apply
+    
+    # Processing options
+    max_content_length: int = 50000  # characters
+    batch_processing: bool = True
+    parallel_agents: bool = True
+    cache_results: bool = True
+    
+    # Output customization
+    include_citations: bool = True
+    generate_summaries: bool = True
+    legal_memo_format: bool = False
+    confidence_explanations: bool = True
+
+@dataclass
+class LegalPromptTemplates:
+    """Customizable legal analysis prompt templates"""
+    case_type: str = "general"
+    
+    def get_document_analysis_prompt(self, case_context: Dict[str, Any] = None) -> str:
+        """Get document analysis prompt based on case type"""
+        base_prompt = f"""You are a legal document analysis expert specializing in {self.case_type} cases.
+
+Your task is to analyze legal documents and extract key information for evidence organization.
+
+Case Context: {json.dumps(case_context or {}, indent=2)}
+
+For each document, provide a JSON response with:
+{{
+  "document_type": "string - type of document",
+  "key_parties": ["list of people/entities mentioned"],
+  "important_dates": ["list of significant dates"],
+  "financial_amounts": ["list of monetary amounts"],
+  "legal_significance": "explanation of legal relevance",
+  "evidence_category": "suggested category for organization",
+  "key_facts": ["list of important factual assertions"],
+  "potential_issues": ["list of potential legal issues or concerns"],
+  "authentication_needs": ["what's needed to authenticate this document"],
+  "probative_value": 0.0-1.0,
+  "relevance_score": 0.0-1.0,
+  "confidence": 0.0-1.0,
+  "summary": "concise summary of document contents",
+  "case_specific_insights": ["insights specific to this case type and context"]
+}}
+
+Focus on {self._get_case_specific_focus()}.
+"""
+        return base_prompt
+    
+    def get_legal_analysis_prompt(self, case_context: Dict[str, Any] = None) -> str:
+        """Get legal analysis prompt based on case type and jurisdiction"""
+        jurisdiction_rules = self._get_jurisdiction_specific_rules(case_context)
+        
+        prompt = f"""You are a legal analysis expert specializing in {self.case_type} with expertise in {jurisdiction_rules.get('jurisdiction', 'general')} law.
+
+Your task is to evaluate evidence for legal proceedings.
+
+Case Context: {json.dumps(case_context or {}, indent=2)}
+
+Applicable Legal Standards:
+{self._format_legal_standards(jurisdiction_rules)}
+
+For each piece of evidence, provide:
+{{
+  "admissibility_analysis": "detailed analysis under applicable evidence rules",
+  "probative_value": 0.0-1.0,
+  "prejudicial_impact": 0.0-1.0,
+  "authentication_requirements": ["what's needed to authenticate"],
+  "foundation_elements": ["required foundation elements"],
+  "hearsay_analysis": "hearsay concerns and exceptions if applicable",
+  "relevance_analysis": "relevance under applicable legal standards",
+  "strategic_value": "high|medium|low with explanation",
+  "legal_theory_support": {{"theory_name": relevance_score}},
+  "recommended_use": "strategic recommendations for using this evidence",
+  "potential_objections": ["likely opposing objections"],
+  "counter_arguments": ["how to address potential objections"],
+  "confidence": 0.0-1.0,
+  "case_specific_analysis": "analysis specific to this case type and context"
+}}
+
+Apply {self.case_type} legal standards and consider {jurisdiction_rules.get('jurisdiction', 'general')} procedural rules.
+"""
+        return prompt
+    
+    def get_pattern_discovery_prompt(self, case_context: Dict[str, Any] = None) -> str:
+        """Get pattern discovery prompt based on case type"""
+        pattern_types = self._get_case_specific_patterns()
+        
+        prompt = f"""You are a pattern discovery expert specializing in {self.case_type} cases.
+
+Your task is to identify patterns, inconsistencies, and connections across evidence.
+
+Case Context: {json.dumps(case_context or {}, indent=2)}
+
+Look for these {self.case_type}-specific patterns:
+{self._format_pattern_types(pattern_types)}
+
+For pattern analysis, provide:
+{{
+  "patterns_detected": [
+    {{
+      "pattern_type": "string",
+      "description": "detailed description",
+      "supporting_evidence": ["list of supporting evidence"],
+      "strength": 0.0-1.0,
+      "legal_significance": "why this pattern matters legally"
+    }}
+  ],
+  "timeline_analysis": "chronological pattern analysis",
+  "inconsistencies_found": ["list of contradictions or inconsistencies"],
+  "relationship_mapping": {{"entity1": ["related_entities"]}},
+  "behavioral_indicators": ["concerning behavior patterns"],
+  "escalation_patterns": "evidence of escalation or progression",
+  "corroborating_evidence": ["evidence that supports the patterns"],
+  "missing_evidence": ["what additional evidence would strengthen patterns"],
+  "strategic_implications": "how these patterns impact legal strategy",
+  "confidence": 0.0-1.0,
+  "case_specific_patterns": "patterns specific to this case type"
+}}
+
+Focus on patterns that are legally significant for {self.case_type} cases.
+"""
+        return prompt
+    
+    def _get_case_specific_focus(self) -> str:
+        """Get focus areas based on case type"""
+        focus_map = {
+            "family_law": "financial disclosure, child welfare, domestic relations, asset division, custody factors",
+            "personal_injury": "causation, damages, liability, medical records, accident reconstruction",
+            "business": "contract performance, breach analysis, financial damages, corporate governance", 
+            "criminal": "constitutional violations, evidence admissibility, witness credibility, procedural compliance",
+            "employment": "discrimination patterns, workplace policies, performance records, wage compliance",
+            "general": "legal relevance, factual accuracy, evidentiary value, procedural compliance"
+        }
+        return focus_map.get(self.case_type, focus_map["general"])
+    
+    def _get_jurisdiction_specific_rules(self, case_context: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Get jurisdiction-specific legal rules"""
+        jurisdiction = case_context.get('jurisdiction', 'US_Federal') if case_context else 'US_Federal'
+        
+        rules_map = {
+            "US_Federal": {
+                "jurisdiction": "Federal",
+                "evidence_rules": "Federal Rules of Evidence",
+                "key_rules": ["Rule 401 (Relevance)", "Rule 403 (Prejudice vs Probative)", "Rule 702 (Expert Testimony)"]
+            },
+            "California": {
+                "jurisdiction": "California",
+                "evidence_rules": "California Evidence Code",
+                "key_rules": ["Section 210 (Relevance)", "Section 352 (Prejudice vs Probative)", "Family Code 2107/2122 (Financial Disclosure)"]
+            },
+            "NewYork": {
+                "jurisdiction": "New York", 
+                "evidence_rules": "New York Rules of Evidence",
+                "key_rules": ["Rule 4.01 (Relevance)", "Rule 4.03 (Prejudice vs Probative)"]
+            }
+        }
+        
+        return rules_map.get(jurisdiction, rules_map["US_Federal"])
+    
+    def _format_legal_standards(self, jurisdiction_rules: Dict[str, Any]) -> str:
+        """Format legal standards for prompt"""
+        standards = []
+        for rule in jurisdiction_rules.get("key_rules", []):
+            standards.append(f"- {rule}")
+        return "\n".join(standards)
+    
+    def _get_case_specific_patterns(self) -> List[Dict[str, Any]]:
+        """Get pattern types specific to case type"""
+        pattern_map = {
+            "family_law": [
+                {"type": "financial_concealment", "indicators": ["hidden accounts", "crypto transactions", "unreported income"]},
+                {"type": "abuse_escalation", "indicators": ["increasing frequency", "severity progression", "isolation tactics"]},
+                {"type": "parental_alienation", "indicators": ["child coaching", "access interference", "negative messaging"]}
+            ],
+            "personal_injury": [
+                {"type": "causation_chain", "indicators": ["temporal relationship", "medical progression", "activity limitations"]},
+                {"type": "pre_existing_conditions", "indicators": ["prior treatment", "similar symptoms", "medical history"]}
+            ],
+            "business": [
+                {"type": "breach_patterns", "indicators": ["performance failures", "timing issues", "communication gaps"]},
+                {"type": "financial_irregularities", "indicators": ["unusual transactions", "accounting discrepancies", "cash flow issues"]}
+            ],
+            "general": [
+                {"type": "credibility_issues", "indicators": ["inconsistent statements", "contradictory evidence", "timing problems"]},
+                {"type": "procedural_violations", "indicators": ["missed deadlines", "improper service", "discovery abuse"]}
+            ]
+        }
+        
+        return pattern_map.get(self.case_type, pattern_map["general"])
+    
+    def _format_pattern_types(self, pattern_types: List[Dict[str, Any]]) -> str:
+        """Format pattern types for prompt"""
+        formatted = []
+        for pattern in pattern_types:
+            indicators = ", ".join(pattern["indicators"])
+            formatted.append(f"- {pattern['type']}: {indicators}")
+        return "\n".join(formatted)
+
+class EnhancedAIRateLimiter:
+    """Advanced rate limiting with dynamic adjustment and graceful degradation"""
+    
+    def __init__(self, config):
+        self.config = config
+        self.request_history = []
+        self.token_history = []
+        self.cost_history = []
+        self.error_history = []
+        
+        # Dynamic rate adjustment
+        self.current_rate_multiplier = 1.0
+        self.consecutive_errors = 0
+        self.last_error_time = 0
+        
+        # Graceful degradation settings
+        self.degradation_mode = False
+        self.degraded_until = 0
+        
+        # Usage tracking
+        self.session_stats = {
+            'total_requests': 0,
+            'total_tokens': 0,
+            'total_cost': 0.0,
+            'errors': 0,
+            'rate_limit_hits': 0
+        }
+    
+    async def check_and_wait_if_needed(self) -> bool:
+        """Check rate limits and wait if necessary, return False if should skip AI"""
+        now = time.time()
+        
+        # Clean old history
+        self._clean_old_records(now)
+        
+        # Check if in degradation mode
+        if self.degradation_mode and now < self.degraded_until:
+            if self.config.pause_on_limit:
+                wait_time = self.degraded_until - now
+                logger.info(f"AI in degradation mode, waiting {wait_time:.1f} seconds")
+                await asyncio.sleep(wait_time)
+                self.degradation_mode = False
+            else:
+                logger.info("AI disabled due to rate limits")
+                return False
+        
+        # Calculate current limits with dynamic adjustment
+        effective_rpm = int(self.config.max_requests_per_minute * self.current_rate_multiplier)
+        effective_tph = int(self.config.max_tokens_per_hour * self.current_rate_multiplier)
+        effective_cph = self.config.max_cost_per_hour * self.current_rate_multiplier
+        
+        # Check request rate
+        recent_requests = len([r for r in self.request_history if now - r < 60])
+        if recent_requests >= effective_rpm:
+            await self._handle_rate_limit("requests per minute", 60)
+            return False
+        
+        # Check token usage
+        recent_tokens = sum(t['tokens'] for t in self.token_history if now - t['timestamp'] < 3600)
+        if recent_tokens >= effective_tph:
+            await self._handle_rate_limit("tokens per hour", 3600)
+            return False
+        
+        # Check cost usage
+        recent_cost = sum(c['cost'] for c in self.cost_history if now - c['timestamp'] < 3600)
+        if recent_cost >= effective_cph:
+            await self._handle_rate_limit("cost per hour", 3600)
+            return False
+        
+        return True
+    
+    async def record_request(self, tokens_used: int, cost: float, success: bool = True):
+        """Record API usage and adjust rates dynamically"""
+        now = time.time()
+        
+        # Record usage
+        self.request_history.append(now)
+        self.token_history.append({'timestamp': now, 'tokens': tokens_used})
+        self.cost_history.append({'timestamp': now, 'cost': cost})
+        
+        # Update session stats
+        self.session_stats['total_requests'] += 1
+        self.session_stats['total_tokens'] += tokens_used
+        self.session_stats['total_cost'] += cost
+        
+        if success:
+            # Success - gradually increase rate if we've been conservative
+            self.consecutive_errors = 0
+            if self.current_rate_multiplier < 1.0:
+                self.current_rate_multiplier = min(1.0, self.current_rate_multiplier + 0.1)
+        else:
+            # Error - record and potentially decrease rate
+            self.error_history.append(now)
+            self.session_stats['errors'] += 1
+            self.consecutive_errors += 1
+            self.last_error_time = now
+            
+            # Decrease rate after multiple consecutive errors
+            if self.consecutive_errors >= 3:
+                self.current_rate_multiplier = max(0.3, self.current_rate_multiplier * 0.7)
+                logger.warning(f"AI rate limited due to errors, reduced to {self.current_rate_multiplier:.1%} of normal rate")
+    
+    async def _handle_rate_limit(self, limit_type: str, window_seconds: int):
+        """Handle rate limit with adaptive backoff"""
+        self.session_stats['rate_limit_hits'] += 1
+        logger.warning(f"AI rate limit hit: {limit_type}")
+        
+        if self.config.pause_on_limit:
+            # Calculate adaptive backoff time
+            base_backoff = min(window_seconds * 0.1, 60)  # Max 1 minute base
+            backoff_time = base_backoff * (1.5 ** min(self.consecutive_errors, 5))  # Exponential up to 5 errors
+            backoff_time = min(backoff_time, self.config.max_backoff_seconds)
+            
+            self.degradation_mode = True
+            self.degraded_until = time.time() + backoff_time
+            
+            logger.info(f"AI paused for {backoff_time:.1f} seconds due to {limit_type} limit")
+        else:
+            self.degradation_mode = True
+            self.degraded_until = time.time() + 300  # 5 minute cooldown
+    
     def _clean_old_records(self, now: float):
         """Clean up old usage records"""
         # Keep last hour for tokens/cost
@@ -1237,386 +1611,5 @@ if __name__ == "__main__":
         print(f"  ✓ Configuration exported to {export_path}")
     
     # Run test
-    asyncio.run(test_enhanced_plugin())#!/usr/bin/env python3
-"""
-Enhanced LCAS AI Foundation Plugin - Production Ready
-Includes rate limiting, user configurability, and generalized legal analysis
-"""
-
-import os
-import json
-import asyncio
-import logging
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, asdict, field
-from typing import Dict, List, Any, Optional, Union, Callable
-from pathlib import Path
-import time
-from datetime import datetime
-
-# Core dependencies with better error handling
-try:
-    import openai
-    OPENAI_AVAILABLE = True
-except ImportError:
-    OPENAI_AVAILABLE = False
-
-try:
-    import anthropic
-    ANTHROPIC_AVAILABLE = True
-except ImportError:
-    ANTHROPIC_AVAILABLE = False
-
-try:
-    import requests
-    import httpx
-    HTTP_AVAILABLE = True
-except ImportError:
-    HTTP_AVAILABLE = False
-
-logger = logging.getLogger(__name__)
-
-@dataclass
-class AIConfigSettings:
-    """User-configurable AI settings"""
-    # Provider preferences
-    preferred_provider: str = "openai"  # openai, anthropic, local
-    fallback_providers: List[str] = field(default_factory=lambda: ["anthropic", "local"])
-    
-    # Analysis depth and quality
-    analysis_depth: str = "standard"  # basic, standard, comprehensive
-    confidence_threshold: float = 0.6
-    enable_multi_agent: bool = True
-    enable_cross_validation: bool = False  # Multiple agents validate findings
-    
-    # Legal analysis customization
-    case_type: str = "general"  # general, family_law, personal_injury, business, etc.
-    jurisdiction: str = "US_Federal"  # US_Federal, California, NewYork, etc.
-    legal_standards: List[str] = field(default_factory=list)  # Custom legal standards to apply
-    
-    # Processing options
-    max_content_length: int = 50000  # characters
-    batch_processing: bool = True
-    parallel_agents: bool = True
-    cache_results: bool = True
-    
-    # Output customization
-    include_citations: bool = True
-    generate_summaries: bool = True
-    legal_memo_format: bool = False
-    confidence_explanations: bool = True
-
-@dataclass
-class LegalPromptTemplates:
-    """Customizable legal analysis prompt templates"""
-    case_type: str = "general"
-    
-    def get_document_analysis_prompt(self, case_context: Dict[str, Any] = None) -> str:
-        """Get document analysis prompt based on case type"""
-        base_prompt = f"""You are a legal document analysis expert specializing in {self.case_type} cases.
-
-Your task is to analyze legal documents and extract key information for evidence organization.
-
-Case Context: {json.dumps(case_context or {}, indent=2)}
-
-For each document, provide a JSON response with:
-{{
-  "document_type": "string - type of document",
-  "key_parties": ["list of people/entities mentioned"],
-  "important_dates": ["list of significant dates"],
-  "financial_amounts": ["list of monetary amounts"],
-  "legal_significance": "explanation of legal relevance",
-  "evidence_category": "suggested category for organization",
-  "key_facts": ["list of important factual assertions"],
-  "potential_issues": ["list of potential legal issues or concerns"],
-  "authentication_needs": ["what's needed to authenticate this document"],
-  "probative_value": 0.0-1.0,
-  "relevance_score": 0.0-1.0,
-  "confidence": 0.0-1.0,
-  "summary": "concise summary of document contents",
-  "case_specific_insights": ["insights specific to this case type and context"]
-}}
-
-Focus on {self._get_case_specific_focus()}.
-"""
-        return base_prompt
-    
-    def get_legal_analysis_prompt(self, case_context: Dict[str, Any] = None) -> str:
-        """Get legal analysis prompt based on case type and jurisdiction"""
-        jurisdiction_rules = self._get_jurisdiction_specific_rules(case_context)
-        
-        prompt = f"""You are a legal analysis expert specializing in {self.case_type} with expertise in {jurisdiction_rules.get('jurisdiction', 'general')} law.
-
-Your task is to evaluate evidence for legal proceedings.
-
-Case Context: {json.dumps(case_context or {}, indent=2)}
-
-Applicable Legal Standards:
-{self._format_legal_standards(jurisdiction_rules)}
-
-For each piece of evidence, provide:
-{{
-  "admissibility_analysis": "detailed analysis under applicable evidence rules",
-  "probative_value": 0.0-1.0,
-  "prejudicial_impact": 0.0-1.0,
-  "authentication_requirements": ["what's needed to authenticate"],
-  "foundation_elements": ["required foundation elements"],
-  "hearsay_analysis": "hearsay concerns and exceptions if applicable",
-  "relevance_analysis": "relevance under applicable legal standards",
-  "strategic_value": "high|medium|low with explanation",
-  "legal_theory_support": {{"theory_name": relevance_score}},
-  "recommended_use": "strategic recommendations for using this evidence",
-  "potential_objections": ["likely opposing objections"],
-  "counter_arguments": ["how to address potential objections"],
-  "confidence": 0.0-1.0,
-  "case_specific_analysis": "analysis specific to this case type and context"
-}}
-
-Apply {self.case_type} legal standards and consider {jurisdiction_rules.get('jurisdiction', 'general')} procedural rules.
-"""
-        return prompt
-    
-    def get_pattern_discovery_prompt(self, case_context: Dict[str, Any] = None) -> str:
-        """Get pattern discovery prompt based on case type"""
-        pattern_types = self._get_case_specific_patterns()
-        
-        prompt = f"""You are a pattern discovery expert specializing in {self.case_type} cases.
-
-Your task is to identify patterns, inconsistencies, and connections across evidence.
-
-Case Context: {json.dumps(case_context or {}, indent=2)}
-
-Look for these {self.case_type}-specific patterns:
-{self._format_pattern_types(pattern_types)}
-
-For pattern analysis, provide:
-{{
-  "patterns_detected": [
-    {{
-      "pattern_type": "string",
-      "description": "detailed description",
-      "supporting_evidence": ["list of supporting evidence"],
-      "strength": 0.0-1.0,
-      "legal_significance": "why this pattern matters legally"
-    }}
-  ],
-  "timeline_analysis": "chronological pattern analysis",
-  "inconsistencies_found": ["list of contradictions or inconsistencies"],
-  "relationship_mapping": {{"entity1": ["related_entities"]}},
-  "behavioral_indicators": ["concerning behavior patterns"],
-  "escalation_patterns": "evidence of escalation or progression",
-  "corroborating_evidence": ["evidence that supports the patterns"],
-  "missing_evidence": ["what additional evidence would strengthen patterns"],
-  "strategic_implications": "how these patterns impact legal strategy",
-  "confidence": 0.0-1.0,
-  "case_specific_patterns": "patterns specific to this case type"
-}}
-
-Focus on patterns that are legally significant for {self.case_type} cases.
-"""
-        return prompt
-    
-    def _get_case_specific_focus(self) -> str:
-        """Get focus areas based on case type"""
-        focus_map = {
-            "family_law": "financial disclosure, child welfare, domestic relations, asset division, custody factors",
-            "personal_injury": "causation, damages, liability, medical records, accident reconstruction",
-            "business": "contract performance, breach analysis, financial damages, corporate governance", 
-            "criminal": "constitutional violations, evidence admissibility, witness credibility, procedural compliance",
-            "employment": "discrimination patterns, workplace policies, performance records, wage compliance",
-            "general": "legal relevance, factual accuracy, evidentiary value, procedural compliance"
-        }
-        return focus_map.get(self.case_type, focus_map["general"])
-    
-    def _get_jurisdiction_specific_rules(self, case_context: Dict[str, Any] = None) -> Dict[str, Any]:
-        """Get jurisdiction-specific legal rules"""
-        jurisdiction = case_context.get('jurisdiction', 'US_Federal') if case_context else 'US_Federal'
-        
-        rules_map = {
-            "US_Federal": {
-                "jurisdiction": "Federal",
-                "evidence_rules": "Federal Rules of Evidence",
-                "key_rules": ["Rule 401 (Relevance)", "Rule 403 (Prejudice vs Probative)", "Rule 702 (Expert Testimony)"]
-            },
-            "California": {
-                "jurisdiction": "California",
-                "evidence_rules": "California Evidence Code",
-                "key_rules": ["Section 210 (Relevance)", "Section 352 (Prejudice vs Probative)", "Family Code 2107/2122 (Financial Disclosure)"]
-            },
-            "NewYork": {
-                "jurisdiction": "New York", 
-                "evidence_rules": "New York Rules of Evidence",
-                "key_rules": ["Rule 4.01 (Relevance)", "Rule 4.03 (Prejudice vs Probative)"]
-            }
-        }
-        
-        return rules_map.get(jurisdiction, rules_map["US_Federal"])
-    
-    def _format_legal_standards(self, jurisdiction_rules: Dict[str, Any]) -> str:
-        """Format legal standards for prompt"""
-        standards = []
-        for rule in jurisdiction_rules.get("key_rules", []):
-            standards.append(f"- {rule}")
-        return "\n".join(standards)
-    
-    def _get_case_specific_patterns(self) -> List[Dict[str, Any]]:
-        """Get pattern types specific to case type"""
-        pattern_map = {
-            "family_law": [
-                {"type": "financial_concealment", "indicators": ["hidden accounts", "crypto transactions", "unreported income"]},
-                {"type": "abuse_escalation", "indicators": ["increasing frequency", "severity progression", "isolation tactics"]},
-                {"type": "parental_alienation", "indicators": ["child coaching", "access interference", "negative messaging"]}
-            ],
-            "personal_injury": [
-                {"type": "causation_chain", "indicators": ["temporal relationship", "medical progression", "activity limitations"]},
-                {"type": "pre_existing_conditions", "indicators": ["prior treatment", "similar symptoms", "medical history"]}
-            ],
-            "business": [
-                {"type": "breach_patterns", "indicators": ["performance failures", "timing issues", "communication gaps"]},
-                {"type": "financial_irregularities", "indicators": ["unusual transactions", "accounting discrepancies", "cash flow issues"]}
-            ],
-            "general": [
-                {"type": "credibility_issues", "indicators": ["inconsistent statements", "contradictory evidence", "timing problems"]},
-                {"type": "procedural_violations", "indicators": ["missed deadlines", "improper service", "discovery abuse"]}
-            ]
-        }
-        
-        return pattern_map.get(self.case_type, pattern_map["general"])
-    
-    def _format_pattern_types(self, pattern_types: List[Dict[str, Any]]) -> str:
-        """Format pattern types for prompt"""
-        formatted = []
-        for pattern in pattern_types:
-            indicators = ", ".join(pattern["indicators"])
-            formatted.append(f"- {pattern['type']}: {indicators}")
-        return "\n".join(formatted)
-
-class EnhancedAIRateLimiter:
-    """Advanced rate limiting with dynamic adjustment and graceful degradation"""
-    
-    def __init__(self, config):
-        self.config = config
-        self.request_history = []
-        self.token_history = []
-        self.cost_history = []
-        self.error_history = []
-        
-        # Dynamic rate adjustment
-        self.current_rate_multiplier = 1.0
-        self.consecutive_errors = 0
-        self.last_error_time = 0
-        
-        # Graceful degradation settings
-        self.degradation_mode = False
-        self.degraded_until = 0
-        
-        # Usage tracking
-        self.session_stats = {
-            'total_requests': 0,
-            'total_tokens': 0,
-            'total_cost': 0.0,
-            'errors': 0,
-            'rate_limit_hits': 0
-        }
-    
-    async def check_and_wait_if_needed(self) -> bool:
-        """Check rate limits and wait if necessary, return False if should skip AI"""
-        now = time.time()
-        
-        # Clean old history
-        self._clean_old_records(now)
-        
-        # Check if in degradation mode
-        if self.degradation_mode and now < self.degraded_until:
-            if self.config.pause_on_limit:
-                wait_time = self.degraded_until - now
-                logger.info(f"AI in degradation mode, waiting {wait_time:.1f} seconds")
-                await asyncio.sleep(wait_time)
-                self.degradation_mode = False
-            else:
-                logger.info("AI disabled due to rate limits")
-                return False
-        
-        # Calculate current limits with dynamic adjustment
-        effective_rpm = int(self.config.max_requests_per_minute * self.current_rate_multiplier)
-        effective_tph = int(self.config.max_tokens_per_hour * self.current_rate_multiplier)
-        effective_cph = self.config.max_cost_per_hour * self.current_rate_multiplier
-        
-        # Check request rate
-        recent_requests = len([r for r in self.request_history if now - r < 60])
-        if recent_requests >= effective_rpm:
-            await self._handle_rate_limit("requests per minute", 60)
-            return False
-        
-        # Check token usage
-        recent_tokens = sum(t['tokens'] for t in self.token_history if now - t['timestamp'] < 3600)
-        if recent_tokens >= effective_tph:
-            await self._handle_rate_limit("tokens per hour", 3600)
-            return False
-        
-        # Check cost usage
-        recent_cost = sum(c['cost'] for c in self.cost_history if now - c['timestamp'] < 3600)
-        if recent_cost >= effective_cph:
-            await self._handle_rate_limit("cost per hour", 3600)
-            return False
-        
-        return True
-    
-    async def record_request(self, tokens_used: int, cost: float, success: bool = True):
-        """Record API usage and adjust rates dynamically"""
-        now = time.time()
-        
-        # Record usage
-        self.request_history.append(now)
-        self.token_history.append({'timestamp': now, 'tokens': tokens_used})
-        self.cost_history.append({'timestamp': now, 'cost': cost})
-        
-        # Update session stats
-        self.session_stats['total_requests'] += 1
-        self.session_stats['total_tokens'] += tokens_used
-        self.session_stats['total_cost'] += cost
-        
-        if success:
-            # Success - gradually increase rate if we've been conservative
-            self.consecutive_errors = 0
-            if self.current_rate_multiplier < 1.0:
-                self.current_rate_multiplier = min(1.0, self.current_rate_multiplier + 0.1)
-        else:
-            # Error - record and potentially decrease rate
-            self.error_history.append(now)
-            self.session_stats['errors'] += 1
-            self.consecutive_errors += 1
-            self.last_error_time = now
-            
-            # Decrease rate after multiple consecutive errors
-            if self.consecutive_errors >= 3:
-                self.current_rate_multiplier = max(0.3, self.current_rate_multiplier * 0.7)
-                logger.warning(f"AI rate limited due to errors, reduced to {self.current_rate_multiplier:.1%} of normal rate")
-    
-    async def _handle_rate_limit(self, limit_type: str, window_seconds: int):
-        """Handle rate limit with adaptive backoff"""
-        self.session_stats['rate_limit_hits'] += 1
-        logger.warning(f"AI rate limit hit: {limit_type}")
-        
-        if self.config.pause_on_limit:
-            # Calculate adaptive backoff time
-            base_backoff = min(window_seconds * 0.1, 60)  # Max 1 minute base
-            backoff_time = base_backoff * (1.5 ** min(self.consecutive_errors, 5))  # Exponential up to 5 errors
-            backoff_time = min(backoff_time, self.config.max_backoff_seconds)
-            
-            self.degradation_mode = True
-            self.degraded_until = time.time() + backoff_time
-            
-            logger.info(f"AI paused for {backoff_time:.1f} seconds due to {limit_type} limit")
-        else:
-            self.degradation_mode = True
-            self.degraded_until = time.time() + 300  # 5 minute cooldown
-    
-    def _clean_old_records(self, now: float):
-        """Clean up old usage records"""
-        # Keep last hour for tokens/cost
-        self.token_history = [t for t in self.token_history if now - t['timestamp'] < 3600]
-        self.cost_history = [c for c in self.cost_history if now - c['timestamp'] < 3600]
-        
-        # Keep last minute for requests
-        self.request_history = [r
+    asyncio.run(test_enhanced_plugin()
+)
