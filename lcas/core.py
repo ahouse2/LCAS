@@ -64,7 +64,8 @@ class LCASConfig:
                 "hash_generation_plugin",
                 "evidence_categorization_plugin",
                 "timeline_analysis_plugin",
-                "report_generation_plugin"
+                "report_generation_plugin",
+                "lcas_ai_wrapper_plugin"
             ]
 
 class PluginInterface(ABC):
