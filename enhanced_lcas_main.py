@@ -437,10 +437,10 @@ class LCASCore:
         
         # ADD THESE NEW COMPONENTS
         # File Preservation System
-        self.preservation_manager = FilePreservationManager(config)
+        self.preservation_manager = FilePreservationManager(self.config)
         
         # Enhanced Analysis Engine
-        self.analysis_engine = EnhancedAnalysisEngine(config, self.ai_plugin)
+        self.analysis_engine = EnhancedAnalysisEngine(self.config, self.ai_plugin)
         
         logger.info("✅ Enhanced LCAS v4.0 components initialized")
         
@@ -740,6 +740,9 @@ class LCASCore:
             f.write(summary_report)
         
         logger.info("Enhanced reports generated successfully")
+
+    def _map_ai_category_to_folder(self, ai_category: str) -> str:
+        """Maps an AI-suggested category string to a folder name."""
         # This would be more sophisticated in practice
         category_mapping = {
             "financial_evidence": "02_FINANCIAL_EVIDENCE",
@@ -747,6 +750,7 @@ class LCASCore:
             "legal_violations": "04_LEGAL_PROCESS_VIOLATIONS",
             "communications": "05_COMMUNICATIONS",
             "court_records": "06_COURT_RECORDS"
+            # Add more mappings as needed based on AI outputs
         }
         
         return category_mapping.get(ai_category.lower(), "09_FOR_HUMAN_REVIEW")
