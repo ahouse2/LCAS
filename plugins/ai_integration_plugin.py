@@ -377,7 +377,8 @@ class EnhancedAIRateLimiter:
         """Clean up old usage records"""
         # Keep last hour for tokens/cost
         self.token_history = [t for t in self.token_history if now - t['timestamp'] < 3600]
-        self.cost_history = [c for c in self.cost_history if now - c['timestamp'] < 3600]def _clean_old_records(self, now: float):
+        self.cost_history = [c for c in self.cost_history if now - c['timestamp'] < 3600]
+    def _clean_old_records(self, now: float):
         
         # Keep last minute for requests
         self.request_history = [r for r in self.request_history if now - r < 60]
@@ -1487,7 +1488,7 @@ System Health: {status['system_health'].upper()}
         logger.info(f"Configuration imported from {file_path}")
 
 # Factory function for LCAS integration
-    def create_enhanced_ai_plugin(lcas_config) -> EnhancedAIFoundationPlugin:
+def create_enhanced_ai_plugin(lcas_config) -> "EnhancedAIFoundationPlugin":
     """Factory function to create enhanced AI plugin for LCAS"""
     
     # Extract AI configuration from LCAS config if available

@@ -247,33 +247,15 @@ def main():
                 continue
             
             # Create/update config
-            config_file = create_config_file(source, target)
-            print(f"✅ Configuration updated successfully!")
-        
-        elif choice == '5':
-            # View Configuration
-            view_configuration()
-        
-        elif choice == '6':
-            # Exit
-            print("\n👋 Thank you for using LCAS!")
-            print("Visit us at: https://github.com/your-repo/lcas")
-            break
-        
-        else:
-            print("\n❌ Invalid choice. Please enter 1-6.")
-
-if __name__ == "__main__":
-    main()(source_dir, target_dir)
-            
-            # Run analysis
+            # Corrected: use source_dir, target_dir from check_requirements()
+            config_file = create_config_file(source_dir, target_dir)
+            # Run analysis (this was missing from the original choice '1' block after merge)
             success = run_analysis(config_file)
-            
             if success:
                 print(f"\n🎉 Analysis complete! Check {target_dir} for results.")
             else:
                 print("\n😞 Analysis failed. Check the log file for details.")
-        
+
         elif choice == '2':
             # Check System Requirements
             requirements_ok, source_dir, target_dir = check_requirements()
@@ -288,12 +270,30 @@ if __name__ == "__main__":
             print("\n⚙️ CONFIGURATION SETUP")
             print("="*30)
             
-            source = input("Enter source directory path (or press Enter for default): ").strip()
-            if not source:
-                source = r"F:\POST TRIAL DIVORCE"
+            # Use different variable names for this input to avoid conflict if source_dir/target_dir are needed later
+            cfg_source_dir = input("Enter source directory path (or press Enter for default): ").strip()
+            if not cfg_source_dir:
+                cfg_source_dir = r"F:\POST TRIAL DIVORCE" # Default
             
-            target = input("Enter target directory path (or press Enter for default): ").strip()
-            if not target:
-                target = r"G:\LCAS_ANALYSIS_RESULTS"
+            cfg_target_dir = input("Enter target directory path (or press Enter for default): ").strip()
+            if not cfg_target_dir:
+                cfg_target_dir = r"G:\LCAS_ANALYSIS_RESULTS" # Default
             
-            config_file = create_config_file
+            config_file = create_config_file(cfg_source_dir, cfg_target_dir)
+            print(f"✅ Configuration created/updated: {config_file}")
+
+        elif choice == '5':
+            # View Configuration
+            view_configuration()
+
+        elif choice == '6':
+            # Exit
+            print("\n👋 Thank you for using LCAS!")
+            print("Visit us at: https://github.com/your-repo/lcas")
+            break
+
+        else:
+            print("\n❌ Invalid choice. Please enter 1-6.")
+
+if __name__ == "__main__":
+    main()
