@@ -64,7 +64,7 @@ docker-run:
 # ================================
 
 @echo off
-echo 🚀 LCAS Installation Helper for Windows
+echo LCAS Installation Helper for Windows
 echo ================================================
 
 REM Check Python installation
