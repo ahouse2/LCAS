@@ -1,6 +1,6 @@
-            self.update_status("Processing stopped by user")
+self.update_status("Processing stopped by user")
     
-    def _run_preservation(self):
+def _run_preservation(self):
         """Run file preservation in background thread"""
         try:
             source_path = Path(self.source_var.get())

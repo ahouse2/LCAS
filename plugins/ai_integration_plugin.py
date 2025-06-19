@@ -377,7 +377,8 @@ class EnhancedAIRateLimiter:
         """Clean up old usage records"""
         # Keep last hour for tokens/cost
         self.token_history = [t for t in self.token_history if now - t['timestamp'] < 3600]
-        self.cost_history = [c for c in self.cost_history if now - c['timestamp'] < 3600]def _clean_old_records(self, now: float):
+        self.cost_history = [c for c in self.cost_history if now - c['timestamp'] < 3600]
+    def _clean_old_records(self, now: float):
         
         # Keep last minute for requests
         self.request_history = [r for r in self.request_history if now - r < 60]
@@ -1488,24 +1489,24 @@ System Health: {status['system_health'].upper()}
 
 # Factory function for LCAS integration
     def create_enhanced_ai_plugin(lcas_config) -> EnhancedAIFoundationPlugin:
-    """Factory function to create enhanced AI plugin for LCAS"""
-    
-    # Extract AI configuration from LCAS config if available
-    config_path = getattr(lcas_config, 'ai_config_path', 'config/ai_config.json')
-    
-    # Create the enhanced plugin
-    ai_plugin = EnhancedAIFoundationPlugin(config_path)
-    
-    # Update user settings based on LCAS config
-    if hasattr(lcas_config, 'case_theory'):
-        ai_plugin.update_user_settings(
-            case_type=lcas_config.case_theory.case_type,
-            analysis_depth=getattr(lcas_config, 'ai_analysis_depth', 'standard'),
-            confidence_threshold=getattr(lcas_config, 'ai_confidence_threshold', 0.6)
-        )
-    
-    logger.info("Enhanced AI Foundation Plugin created and configured for LCAS")
-    return ai_plugin
+        """Factory function to create enhanced AI plugin for LCAS"""
+
+        # Extract AI configuration from LCAS config if available
+        config_path = getattr(lcas_config, 'ai_config_path', 'config/ai_config.json')
+
+        # Create the enhanced plugin
+        ai_plugin = EnhancedAIFoundationPlugin(config_path)
+
+        # Update user settings based on LCAS config
+        if hasattr(lcas_config, 'case_theory'):
+            ai_plugin.update_user_settings(
+                case_type=lcas_config.case_theory.case_type,
+                analysis_depth=getattr(lcas_config, 'ai_analysis_depth', 'standard'),
+                confidence_threshold=getattr(lcas_config, 'ai_confidence_threshold', 0.6)
+            )
+
+        logger.info("Enhanced AI Foundation Plugin created and configured for LCAS")
+        return ai_plugin
 
 # Backward compatibility
 def create_ai_plugin(lcas_config):
