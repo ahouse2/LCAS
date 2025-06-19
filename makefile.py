@@ -77,7 +77,7 @@ if errorlevel 1 (
 )
 
 REM Upgrade pip
-echo 🔄 Upgrading pip...
+echo Upgrading pip...
 python -m pip install --upgrade pip
 
 REM Install requirements

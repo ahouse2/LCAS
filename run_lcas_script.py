@@ -247,7 +247,10 @@ def main():
                 continue
             
             # Create/update config
+        feat/ai-integration-fix
+
       feat/ai-integration-fix
+        main
             # Corrected: use source_dir, target_dir from check_requirements()
             config_file = create_config_file(source_dir, target_dir)
             # Run analysis (this was missing from the original choice '1' block after merge)
@@ -255,7 +258,11 @@ def main():
             if success:
                 print(f"\n Analysis complete! Check {target_dir} for results.")
             else:
+        feat/ai-integration-fix
+                print("\n😞 Analysis failed. Check the log file for details.")
+
                 print("\n Analysis failed. Check the log file for details.")
+        main
 
         elif choice == '2':
             # Check System Requirements
@@ -281,11 +288,28 @@ def main():
                 cfg_target_dir = r"G:\LCAS_ANALYSIS_RESULTS" # Default
             
             config_file = create_config_file(cfg_source_dir, cfg_target_dir)
+        feat/ai-integration-fix
+            print(f"✅ Configuration created/updated: {config_file}")
+
             print(f" Configuration created/updated: {config_file}")
+        main
 
         elif choice == '5':
             # View Configuration
             view_configuration()
+
+        feat/ai-integration-fix
+        elif choice == '6':
+            # Exit
+            print("\n👋 Thank you for using LCAS!")
+            print("Visit us at: https://github.com/your-repo/lcas")
+            break
+
+        else:
+            print("\n❌ Invalid choice. Please enter 1-6.")
+
+if __name__ == "__main__":
+    main()
 
 
             config_file = create_config_file(source, target)
@@ -343,3 +367,4 @@ elif choice == '4':
 
     config_file = create_config_file(source, target) # Corrected line 270 and added arguments
        main
+        main

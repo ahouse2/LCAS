@@ -1,6 +1,30 @@
 self.update_status("Processing stopped by user")
     
 def _run_preservation(self):
+      feat/ai-integration-fix
+    """Run file preservation in background thread"""
+    try:
+        source_path = Path(self.source_var.get())
+        target_path = Path(self.target_var.get())
+
+        self.root.after(0, self.log_status, "🚀 Starting file preservation...")
+
+        # Create target structure
+        self.root.after(0, self.log_status, "📁 Creating folder structure...")
+        self.create_folder_structure(target_path)
+
+        # Discover files
+        files = list(source_path.rglob("*"))
+        files = [f for f in files if f.is_file()]
+
+        self.root.after(0, self.log_status, f"📋 Found {len(files)} files to preserve...")
+
+        # Preserve files
+        preserved_count = 0
+        for i, file_path in enumerate(files):
+            if not self.is_processing:
+                break
+
         """Run file preservation in background thread"""
         try:
             source_path = Path(self.source_var.get())
@@ -17,49 +41,44 @@ def _run_preservation(self):
             files = [f for f in files if f.is_file()]
             
             self.root.after(0, self.log_status, f"📋 Found {len(files)} files to preserve...")
+      main
             
-            # Preserve files
-            preserved_count = 0
-            for i, file_path in enumerate(files):
-                if not self.is_processing:
-                    break
+            try:
+                # Calculate relative path
+                rel_path = file_path.relative_to(source_path)
+                target_file = target_path / "00_PRESERVED_ORIGINALS" / rel_path
                 
-                try:
-                    # Calculate relative path
-                    rel_path = file_path.relative_to(source_path)
-                    target_file = target_path / "00_PRESERVED_ORIGINALS" / rel_path
-                    
-                    # Create target directory
-                    target_file.parent.mkdir(parents=True, exist_ok=True)
-                    
-                    # Copy file
-                    shutil.copy2(file_path, target_file)
-                    
-                    # Verify with hash
-                    source_hash = self.calculate_hash(file_path)
-                    target_hash = self.calculate_hash(target_file)
-                    
-                    if source_hash == target_hash:
-                        preserved_count += 1
-                        status = "✅"
-                    else:
-                        status = "❌ Hash mismatch"
-                    
-                    # Update progress
-                    progress = (i + 1) / len(files)
-                    self.root.after(0, self.update_progress, progress, f"Preserving {i+1}/{len(files)}")
-                    self.root.after(0, self.log_status, f"{status} {rel_path}")
-                    
-                except Exception as e:
-                    self.root.after(0, self.log_status, f"❌ Failed: {file_path.name} - {e}")
-            
-            # Complete
-            self.root.after(0, self.preservation_complete, preserved_count, len(files))
-            
-        except Exception as e:
-            self.root.after(0, self.preservation_error, str(e))
+                # Create target directory
+                target_file.parent.mkdir(parents=True, exist_ok=True)
+
+                # Copy file
+                shutil.copy2(file_path, target_file)
+
+                # Verify with hash
+                source_hash = self.calculate_hash(file_path)
+                target_hash = self.calculate_hash(target_file)
+
+                if source_hash == target_hash:
+                    preserved_count += 1
+                    status = "✅"
+                else:
+                    status = "❌ Hash mismatch"
+
+                # Update progress
+                progress = (i + 1) / len(files)
+                self.root.after(0, self.update_progress, progress, f"Preserving {i+1}/{len(files)}")
+                self.root.after(0, self.log_status, f"{status} {rel_path}")
+
+            except Exception as e:
+                self.root.after(0, self.log_status, f"❌ Failed: {file_path.name} - {e}")
+
+        # Complete
+        self.root.after(0, self.preservation_complete, preserved_count, len(files))
+
+    except Exception as e:
+        self.root.after(0, self.preservation_error, str(e))
     
-    def _run_analysis(self):
+def _run_analysis(self):
         """Run complete analysis in background thread"""
         try:
             if LCAS_MAIN_AVAILABLE and self.config:

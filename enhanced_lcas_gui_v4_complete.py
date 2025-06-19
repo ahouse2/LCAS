@@ -6,72 +6,72 @@ Continuation of the complete GUI implementation
 # ... continuing from previous part ...
 
 def save_configuration(self):
-        """Save current configuration"""
-        try:
-            config_data = {
-                "source_directory": self.source_dir_entry.get(),
-                "target_directory": self.target_dir_entry.get(),
-                "ai_enabled": self.ai_enabled_checkbox.get(),
-                "advanced_nlp": self.advanced_nlp_checkbox.get(),
-                "semantic_clustering": self.semantic_clustering_checkbox.get(),
-                "analysis_depth": self.analysis_depth_menu.get()
-            }
+    """Save current configuration"""
+    try:
+        config_data = {
+            "source_directory": self.source_dir_entry.get(),
+            "target_directory": self.target_dir_entry.get(),
+            "ai_enabled": self.ai_enabled_checkbox.get(),
+            "advanced_nlp": self.advanced_nlp_checkbox.get(),
+            "semantic_clustering": self.semantic_clustering_checkbox.get(),
+            "analysis_depth": self.analysis_depth_menu.get()
+        }
+
+        config_dir = Path("config")
+        config_dir.mkdir(exist_ok=True)
+
+        with open(config_dir / "lcas_config.json", "w") as f:
+            json.dump(config_data, f, indent=2)
+
+        messagebox.showinfo("Configuration Saved", "Configuration saved successfully!")
+        self.update_status("Configuration saved")
+
+    except Exception as e:
+        messagebox.showerror("Save Error", f"Failed to save configuration: {e}")
+
+def load_configuration(self):
+    """Load configuration from file"""
+    try:
+        config_file = Path("config/lcas_config.json")
+        if config_file.exists():
+            with open(config_file, "r") as f:
+                config_data = json.load(f)
             
-            config_dir = Path("config")
-            config_dir.mkdir(exist_ok=True)
+            # Update GUI elements
+            self.source_dir_entry.delete(0, "end")
+            self.source_dir_entry.insert(0, config_data.get("source_directory", ""))
             
-            with open(config_dir / "lcas_config.json", "w") as f:
-                json.dump(config_data, f, indent=2)
+            self.target_dir_entry.delete(0, "end")
+            self.target_dir_entry.insert(0, config_data.get("target_directory", ""))
             
-            messagebox.showinfo("Configuration Saved", "Configuration saved successfully!")
-            self.update_status("Configuration saved")
-            
-        except Exception as e:
-            messagebox.showerror("Save Error", f"Failed to save configuration: {e}")
-    
-    def load_configuration(self):
-        """Load configuration from file"""
-        try:
-            config_file = Path("config/lcas_config.json")
-            if config_file.exists():
-                with open(config_file, "r") as f:
-                    config_data = json.load(f)
-                
-                # Update GUI elements
-                self.source_dir_entry.delete(0, "end")
-                self.source_dir_entry.insert(0, config_data.get("source_directory", ""))
-                
-                self.target_dir_entry.delete(0, "end")
-                self.target_dir_entry.insert(0, config_data.get("target_directory", ""))
-                
-                if config_data.get("ai_enabled", True):
-                    self.ai_enabled_checkbox.select()
-                else:
-                    self.ai_enabled_checkbox.deselect()
-                
-                if config_data.get("advanced_nlp", True):
-                    self.advanced_nlp_checkbox.select()
-                else:
-                    self.advanced_nlp_checkbox.deselect()
-                
-                if config_data.get("semantic_clustering", True):
-                    self.semantic_clustering_checkbox.select()
-                else:
-                    self.semantic_clustering_checkbox.deselect()
-                
-                self.analysis_depth_menu.set(config_data.get("analysis_depth", "comprehensive"))
-                
-                self.config_status_label.configure(text="⚙️ Configuration: Loaded ✅")
-                self.update_status("Configuration loaded")
-                
+            if config_data.get("ai_enabled", True):
+                self.ai_enabled_checkbox.select()
             else:
-                messagebox.showinfo("No Configuration", "No configuration file found. Using defaults.")
-                
-        except Exception as e:
-            messagebox.showerror("Load Error", f"Failed to load configuration: {e}")
-    
-    # Processing Methods
-    def start_preservation(self):
+                self.ai_enabled_checkbox.deselect()
+            
+            if config_data.get("advanced_nlp", True):
+                self.advanced_nlp_checkbox.select()
+            else:
+                self.advanced_nlp_checkbox.deselect()
+
+            if config_data.get("semantic_clustering", True):
+                self.semantic_clustering_checkbox.select()
+            else:
+                self.semantic_clustering_checkbox.deselect()
+
+            self.analysis_depth_menu.set(config_data.get("analysis_depth", "comprehensive"))
+
+            self.config_status_label.configure(text="⚙️ Configuration: Loaded ✅")
+            self.update_status("Configuration loaded")
+
+        else:
+            messagebox.showinfo("No Configuration", "No configuration file found. Using defaults.")
+
+    except Exception as e:
+        messagebox.showerror("Load Error", f"Failed to load configuration: {e}")
+
+# Processing Methods
+def start_preservation(self):
         """Start file preservation process"""
         if self.is_processing:
             messagebox.showwarning("Processing", "A process is already running!")
