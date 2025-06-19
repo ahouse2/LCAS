@@ -504,101 +504,101 @@ class LCASCore:
             analysis.processing_method = "basic"
         
         def run_complete_analysis(self):
-    """Enhanced analysis pipeline with preservation and advanced analysis"""
-    logger.info("🚀 Starting Enhanced LCAS v4.0 analysis pipeline...")
-    
-    try:
-        # STEP 1: File Preservation (NEW)
-        logger.info("📦 Step 1: Preserving evidence files...")
-        print("📦 Step 1: Preserving evidence files...")
+            """Enhanced analysis pipeline with preservation and advanced analysis"""
+            logger.info("🚀 Starting Enhanced LCAS v4.0 analysis pipeline...")
+
+            try:
+                # STEP 1: File Preservation (NEW)
+                logger.info("📦 Step 1: Preserving evidence files...")
+                print("📦 Step 1: Preserving evidence files...")
+
+                def preservation_progress(current, total, result):
+                    if current % 10 == 0 or current == total:  # Log every 10 files
+                        print(f"   Preserving {current}/{total}: {Path(result.source_path).name}")
+
+                preservation_result = self.preservation_manager.preserve_evidence_files(preservation_progress)
+
+                if not preservation_result["success"]:
+                    raise Exception(f"File preservation failed: {preservation_result.get('error')}")
+
+                print(f"   ✅ Preserved {preservation_result['preserved_files']} files ({preservation_result['total_size_mb']} MB)")
+
+                # STEP 2: Enhanced File Analysis (ENHANCED)
+                logger.info("🧠 Step 2: Running enhanced analysis...")
+                print("🧠 Step 2: Running enhanced analysis...")
+
+                # Get preserved files from originals folder
+                preserved_files_path = Path(self.config.target_directory) / "00_PRESERVED_ORIGINALS"
+                preserved_files = list(preserved_files_path.rglob("*"))
+                preserved_files = [f for f in preserved_files if f.is_file()]
+
+                if not preserved_files:
+                    logger.warning("No preserved files found for analysis")
+                    preserved_files = self.discover_files()  # Fallback to your existing method
+
+                print(f"   Found {len(preserved_files)} files for analysis")
+
+                # Enhanced analysis with progress tracking
+                def analysis_progress(current, total, result):
+                    if current % 5 == 0 or current == total:
+                        print(f"   Analyzing {current}/{total}: {Path(result.file_path).name}")
+
+                analysis_results = self.analysis_engine.analyze_batch_files(
+                    preserved_files,
+                    analysis_progress
+                )
+
+                print(f"   ✅ Analyzed {len(analysis_results)} files")
+
+                # STEP 3: Semantic Clustering (NEW)
+                logger.info("🔗 Step 3: Performing semantic clustering...")
+                print("🔗 Step 3: Performing semantic clustering...")
+
+                cluster_results = self.analysis_engine.perform_semantic_clustering()
+                cluster_count = len(set(cluster_results.values())) if cluster_results else 0
+                print(f"   ✅ Created {cluster_count} semantic clusters")
+
+                # STEP 4: File Relationships (NEW)
+                logger.info("🕸️ Step 4: Calculating file relationships...")
+                print("🕸️ Step 4: Calculating file relationships...")
+
+                relationship_results = self.analysis_engine.calculate_file_relationships()
+                total_relationships = sum(len(rels) for rels in relationship_results.values())
+                print(f"   ✅ Found {total_relationships} file relationships")
+
+                # STEP 5: Generate Folder Indexes (ENHANCED)
+                logger.info("📊 Step 5: Generating enhanced folder analysis...")
+                print("📊 Step 5: Generating enhanced folder analysis...")
+
+                self._generate_enhanced_folder_indexes()
+
+                # STEP 6: Save Comprehensive Results (NEW)
+                logger.info("💾 Step 6: Saving comprehensive results...")
+                print("💾 Step 6: Saving comprehensive results...")
+
+                self.analysis_engine.save_analysis_results()
+                self.save_analysis_results()  # Your existing method too
+
+                # STEP 7: Generate Enhanced Reports (NEW)
+                self._generate_enhanced_reports()
+
+                print("🎉 Enhanced LCAS v4.0 analysis completed successfully!")
+                logger.info("Enhanced LCAS analysis pipeline completed successfully")
+
+                return {
+                    "success": True,
+                    "preservation_result": preservation_result,
+                    "analysis_count": len(analysis_results),
+                    "cluster_count": cluster_count,
+                    "relationship_count": total_relationships
+                }
+
+            except Exception as e:
+                error_msg = f"Enhanced analysis failed: {e}"
+                logger.error(error_msg)
+                print(f"❌ {error_msg}")
+                raise
         
-        def preservation_progress(current, total, result):
-            if current % 10 == 0 or current == total:  # Log every 10 files
-                print(f"   Preserving {current}/{total}: {Path(result.source_path).name}")
-        
-        preservation_result = self.preservation_manager.preserve_evidence_files(preservation_progress)
-        
-        if not preservation_result["success"]:
-            raise Exception(f"File preservation failed: {preservation_result.get('error')}")
-        
-        print(f"   ✅ Preserved {preservation_result['preserved_files']} files ({preservation_result['total_size_mb']} MB)")
-        
-        # STEP 2: Enhanced File Analysis (ENHANCED)
-        logger.info("🧠 Step 2: Running enhanced analysis...")
-        print("🧠 Step 2: Running enhanced analysis...")
-        
-        # Get preserved files from originals folder
-        preserved_files_path = Path(self.config.target_directory) / "00_PRESERVED_ORIGINALS"
-        preserved_files = list(preserved_files_path.rglob("*"))
-        preserved_files = [f for f in preserved_files if f.is_file()]
-        
-        if not preserved_files:
-            logger.warning("No preserved files found for analysis")
-            preserved_files = self.discover_files()  # Fallback to your existing method
-        
-        print(f"   Found {len(preserved_files)} files for analysis")
-        
-        # Enhanced analysis with progress tracking
-        def analysis_progress(current, total, result):
-            if current % 5 == 0 or current == total:
-                print(f"   Analyzing {current}/{total}: {Path(result.file_path).name}")
-        
-        analysis_results = self.analysis_engine.analyze_batch_files(
-            preserved_files,
-            analysis_progress
-        )
-        
-        print(f"   ✅ Analyzed {len(analysis_results)} files")
-        
-        # STEP 3: Semantic Clustering (NEW)
-        logger.info("🔗 Step 3: Performing semantic clustering...")
-        print("🔗 Step 3: Performing semantic clustering...")
-        
-        cluster_results = self.analysis_engine.perform_semantic_clustering()
-        cluster_count = len(set(cluster_results.values())) if cluster_results else 0
-        print(f"   ✅ Created {cluster_count} semantic clusters")
-        
-        # STEP 4: File Relationships (NEW)
-        logger.info("🕸️ Step 4: Calculating file relationships...")
-        print("🕸️ Step 4: Calculating file relationships...")
-        
-        relationship_results = self.analysis_engine.calculate_file_relationships()
-        total_relationships = sum(len(rels) for rels in relationship_results.values())
-        print(f"   ✅ Found {total_relationships} file relationships")
-        
-        # STEP 5: Generate Folder Indexes (ENHANCED)
-        logger.info("📊 Step 5: Generating enhanced folder analysis...")
-        print("📊 Step 5: Generating enhanced folder analysis...")
-        
-        self._generate_enhanced_folder_indexes()
-        
-        # STEP 6: Save Comprehensive Results (NEW)
-        logger.info("💾 Step 6: Saving comprehensive results...")
-        print("💾 Step 6: Saving comprehensive results...")
-        
-        self.analysis_engine.save_analysis_results()
-        self.save_analysis_results()  # Your existing method too
-        
-        # STEP 7: Generate Enhanced Reports (NEW)
-        self._generate_enhanced_reports()
-        
-        print("🎉 Enhanced LCAS v4.0 analysis completed successfully!")
-        logger.info("Enhanced LCAS analysis pipeline completed successfully")
-        
-        return {
-            "success": True,
-            "preservation_result": preservation_result,
-            "analysis_count": len(analysis_results),
-            "cluster_count": cluster_count,
-            "relationship_count": total_relationships
-        }
-        
-    except Exception as e:
-        error_msg = f"Enhanced analysis failed: {e}"
-        logger.error(error_msg)
-        print(f"❌ {error_msg}")
-        raise
-    
     async def _process_ai_results(self, analysis: FileAnalysis, 
                                 ai_results: Dict[str, AIAnalysisResult]):
         """Process and integrate AI analysis results"""
