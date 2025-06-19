@@ -188,6 +188,15 @@ Configure in your config file:
 }
 ```
 
+### Detailed AI Configuration (`config/ai_config.json`)
+
+While the main `lcas_config.json` can enable the AI plugin, the detailed configuration for AI providers (OpenAI, Anthropic, local models) and their behavior is managed in a separate file: `config/ai_config.json`.
+
+**Important:**
+- If this file does not exist when LCAS starts with the AI plugin enabled, it will be automatically created in your project's `config/` directory with default settings and **empty placeholders for API keys**.
+- **You MUST edit `config/ai_config.json` to add your valid API keys** for services like OpenAI or Anthropic. You also need to configure the endpoint if you are using a local AI model. Without these, the AI functionalities will not work.
+- This file also allows for advanced customization of AI behavior, such as selecting preferred models, setting analysis depth, configuring rate limits, and more. Refer to the comments or documentation within `config/ai_config.json` for more details once it's generated.
+
 ## 📊 Use Cases
 
 ### Legal Professionals
