@@ -1,0 +1,10 @@
+include README.md
+include LICENSE
+include requirements.txt
+include lcas_config.json
+recursive-include lcas/config *.yaml *.json
+recursive-include lcas/templates *.html
+recursive-include lcas/static *
+recursive-include lcas/plugins *.py
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]

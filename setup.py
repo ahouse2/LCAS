@@ -1,17 +1,25 @@
-from setuptools import setup, find_packages
+#!/usr/bin/env python3
+"""
+Setup script for LCAS - Legal Case Analysis System
+"""
 
+from setuptools import setup, find_packages
+import os
+
+# Read the README file
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
+# Read requirements
 with open("requirements.txt", "r", encoding="utf-8") as fh:
     requirements = [line.strip() for line in fh if line.strip() and not line.startswith("#")]
 
 setup(
-    name="LCAS",
-    version="2.0.0",
-    author="ahouse",
-    author_email="ahouse@housemail.com",
-    description="Legal Case Analysis System - AI-Powered Evidence Organization",
+    name="lcas",
+    version="4.0.0",
+    author="LCAS Development Team",
+    author_email="support@lcas.dev",
+    description="Legal Case Analysis System - AI-Powered Evidence Organization and Analysis",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/ahouse2/LCAS",
@@ -38,23 +46,38 @@ setup(
             "black>=23.0.0",
             "flake8>=6.0.0",
             "mypy>=1.5.0",
+            "isort>=5.12.0",
         ],
         "advanced": [
             "transformers>=4.35.0",
             "torch>=2.1.0",
             "faiss-cpu>=1.7.4",
+            "sentence-transformers>=2.2.2",
+            "spacy>=3.7.0",
             "chromadb>=0.4.0",
+        ],
+        "gui": [
+            "customtkinter>=5.2.0",
+            "pillow>=10.0.0",
+            "tkinter-tooltip>=2.0.0",
         ]
     },
     entry_points={
         "console_scripts": [
-            "lcas=lcas.lcas_main:main",
-            "lcas-gui=lcas.lcas_gui:main",
-            "lcas-cli=lcas.run_lcas_script:main",
+            "lcas=lcas.main:main",
+            "lcas-gui=lcas.gui:main",
+            "lcas-cli=lcas.cli:main",
         ],
     },
     include_package_data=True,
     package_data={
-        "lcas": ["config/*.yaml", "templates/*.html", "static/*"],
+        "lcas": [
+            "config/*.yaml",
+            "config/*.json", 
+            "templates/*.html",
+            "static/*",
+            "plugins/*.py",
+        ],
     },
+    zip_safe=False,
 )

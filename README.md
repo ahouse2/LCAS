@@ -1,6 +1,6 @@
 # LCAS v4.0 - Legal Case Analysis System
 
-🚀 **A modular, plugin-based system for organizing and analyzing legal evidence.**
+🚀 **A comprehensive, modular system for organizing and analyzing legal evidence with AI-powered insights.**
 
 ## Overview
 
@@ -18,55 +18,90 @@ LCAS v4.0 uses a modular plugin architecture:
 
 ```
 LCAS/
-├── lcas_core.py              # Core application engine
-├── lcas_gui_modular.py       # Main GUI interface
-├── plugins/                  # Independent analysis plugins
-│   ├── file_ingestion_plugin.py
-│   ├── evidence_categorization_plugin.py
-│   └── [additional plugins...]
-├── config/                   # Configuration templates
-├── docs/                     # Documentation
-└── tools/                    # Development utilities
+├── lcas/
+│   ├── core.py              # Core application engine
+│   ├── main.py              # Main CLI entry point
+│   ├── gui.py               # GUI interface
+│   ├── cli.py               # Command-line interface
+│   ├── utils.py             # Utility functions
+│   └── plugins/             # Plugin system
+├── plugins/                 # Independent analysis plugins
+├── config/                  # Configuration templates
+├── docs/                    # Documentation
+└── tests/                   # Test suite
 ```
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.8+
-- tkinter (usually included with Python)
+- Python 3.9+
+- pip package manager
 
 ### Installation
 
-1. **Clone the repository:**
+1. **Install from PyPI (recommended):**
+   ```bash
+   pip install lcas
+   ```
+
+2. **Or install from source:**
    ```bash
    git clone https://github.com/ahouse2/LCAS.git
    cd LCAS
+   pip install -e .
    ```
 
-2. **Install dependencies:**
+3. **Install optional dependencies:**
    ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Run LCAS:**
-   ```bash
-   python lcas_gui_modular.py
+   # For AI features
+   pip install lcas[ai]
+   
+   # For advanced NLP
+   pip install lcas[advanced]
+   
+   # For enhanced GUI
+   pip install lcas[gui]
+   
+   # For development
+   pip install lcas[dev]
    ```
 
 ### Basic Usage
 
-1. **Configure Case Settings:**
-   - Open the "⚙️ Configuration" tab
-   - Set your case name, source directory (where your evidence files are), and target directory (where organized results will go)
+#### GUI Interface
+```bash
+lcas-gui
+```
 
-2. **Enable Plugins:**
-   - Go to "🔌 Plugin Manager" tab
-   - Enable desired analysis plugins (File Ingestion and Evidence Categorization are recommended to start)
+#### Command Line Interface
+```bash
+# Interactive configuration
+lcas-cli config
 
-3. **Run Analysis:**
-   - Click "🚀 Start Analysis" on the Dashboard
-   - Monitor progress in the "🔬 Analysis" tab
-   - Review results in the "📊 Results" tab
+# Quick analysis
+lcas-cli quick /path/to/evidence /path/to/results --case-name "My Case"
+
+# Full analysis with configuration file
+lcas-cli analyze --config my_config.json
+```
+
+#### Python API
+```python
+from lcas import LCASCore, LCASConfig
+
+# Create configuration
+config = LCASConfig(
+    case_name="My Legal Case",
+    source_directory="/path/to/evidence",
+    target_directory="/path/to/results"
+)
+
+# Initialize and run analysis
+core = LCASCore(config)
+await core.initialize()
+
+# Analysis will be performed by loaded plugins
+```
 
 ## 📁 Folder Structure
 
@@ -75,65 +110,37 @@ LCAS organizes evidence into a standardized legal argument structure:
 ```
 YOUR_CASE/
 ├── 00_ORIGINAL_FILES_BACKUP/          # Preserved original files
-├── CASE_SUMMARIES_AND_RELATED_DOCS/   # Case summaries, pleadings
-├── CONSTITUTIONAL_VIOLATIONS/          # Due process violations
-├── ELECTRONIC_ABUSE/                   # Digital surveillance evidence
-├── FRAUD_ON_THE_COURT/                # Court fraud evidence
-├── NON_DISCLOSURE/                     # Financial disclosure violations
-├── TEXT_MESSAGES/                      # Communication evidence
-├── POST_TRIAL_ABUSE/                   # Post-trial violations
-├── FOR_HUMAN_REVIEW/                   # Uncategorized files
-└── VISUALIZATIONS_AND_REPORTS/         # Generated reports
+├── 01_CASE_SUMMARIES_AND_RELATED_DOCS/ # Case summaries, pleadings
+├── 02_CONSTITUTIONAL_VIOLATIONS/       # Due process violations
+├── 03_ELECTRONIC_ABUSE/                # Digital surveillance evidence
+├── 04_FRAUD_ON_THE_COURT/             # Court fraud evidence
+├── 05_NON_DISCLOSURE_FC2107_FC2122/   # Financial disclosure violations
+├── 06_PD065288_COURT_RECORD_DOCS/     # Court records
+├── 07_POST_TRIAL_ABUSE/               # Post-trial violations
+├── 08_TEXT_MESSAGES/                  # Communication evidence
+├── 09_FOR_HUMAN_REVIEW/               # Uncategorized files
+└── 10_VISUALIZATIONS_AND_REPORTS/     # Generated reports
 ```
 
-## 🔌 Available Plugins
+## 🔌 Plugin System
+
+LCAS uses a modular plugin architecture. Available plugins include:
 
 ### Core Plugins
 - **File Ingestion**: Preserves original files and creates working copies
 - **Evidence Categorization**: Sorts files into legal argument folders
 - **Hash Generation**: Creates SHA256 hashes for file integrity
+- **Timeline Analysis**: Builds chronological evidence timelines
 - **Report Generation**: Produces comprehensive analysis reports
 
-### Advanced Plugins (Available)
+### Advanced Plugins
 - **AI Integration**: AI-powered document analysis
-- **Timeline Analysis**: Chronological evidence mapping
 - **Pattern Discovery**: Identifies relationships between evidence
 - **Image Analysis**: Processes visual evidence
 
-## 🛠️ Plugin Development
-
-Create custom plugins easily using our template system:
-
-```bash
-# Generate a new plugin
-python tools/plugin_generator.py my_custom_plugin
-
-# Edit the generated file
-plugins/my_custom_plugin.py
-```
-
-### Plugin Structure
-```python
-class MyCustomPlugin(AnalysisPlugin, UIPlugin):
-    @property
-    def name(self) -> str:
-        return "My Custom Plugin"
-    
-    async def analyze(self, data: Any) -> Dict[str, Any]:
-        # Your analysis logic here
-        return {"status": "completed"}
-    
-    def create_ui_elements(self, parent_widget) -> List[tk.Widget]:
-        # Create UI elements
-        return []
-```
-
-See `docs/PLUGIN_DEVELOPMENT.md` for detailed documentation.
-
 ## ⚙️ Configuration
 
-LCAS uses JSON configuration files:
-
+### Configuration File (JSON)
 ```json
 {
   "case_name": "Your Case Name",
@@ -141,10 +148,19 @@ LCAS uses JSON configuration files:
   "target_directory": "/path/to/results",
   "enabled_plugins": [
     "file_ingestion_plugin",
-    "evidence_categorization_plugin"
+    "evidence_categorization_plugin",
+    "hash_generation_plugin"
   ],
-  "debug_mode": false
+  "debug_mode": false,
+  "log_level": "INFO"
 }
+```
+
+### Environment Variables
+```bash
+export LCAS_CONFIG_PATH="/path/to/config.json"
+export LCAS_LOG_LEVEL="DEBUG"
+export OPENAI_API_KEY="your-api-key"  # For AI features
 ```
 
 ## 🤖 AI Integration
@@ -155,7 +171,22 @@ LCAS supports multiple AI providers for enhanced analysis:
 - **Anthropic**: Claude for legal reasoning
 - **Local Models**: Self-hosted solutions
 
-Enable AI features in the "🤖 AI Integration" tab.
+Enable AI features:
+```bash
+pip install lcas[ai]
+```
+
+Configure in your config file:
+```json
+{
+  "ai_config": {
+    "provider": "openai",
+    "model": "gpt-4",
+    "api_key": "your-api-key",
+    "enabled": true
+  }
+}
+```
 
 ## 📊 Use Cases
 
@@ -170,6 +201,59 @@ Enable AI features in the "🤖 AI Integration" tab.
 - **Evidence Mapping**: Visual relationship analysis
 - **Timeline Construction**: Chronological evidence organization
 - **Quality Assurance**: File integrity verification
+
+## 🛠️ Development
+
+### Setting up Development Environment
+```bash
+git clone https://github.com/ahouse2/LCAS.git
+cd LCAS
+pip install -e .[dev]
+```
+
+### Running Tests
+```bash
+pytest
+```
+
+### Code Formatting
+```bash
+black lcas/
+isort lcas/
+```
+
+### Creating a Plugin
+```python
+from lcas.core import AnalysisPlugin
+
+class MyCustomPlugin(AnalysisPlugin):
+    @property
+    def name(self) -> str:
+        return "My Custom Plugin"
+    
+    @property
+    def version(self) -> str:
+        return "1.0.0"
+    
+    @property
+    def description(self) -> str:
+        return "Custom analysis functionality"
+    
+    @property
+    def dependencies(self) -> List[str]:
+        return []
+    
+    async def initialize(self, core_app) -> bool:
+        self.core = core_app
+        return True
+    
+    async def cleanup(self) -> None:
+        pass
+    
+    async def analyze(self, data) -> Dict[str, Any]:
+        # Your analysis logic here
+        return {"status": "completed"}
+```
 
 ## 🏆 Key Features
 
@@ -195,7 +279,7 @@ Enable AI features in the "🤖 AI Integration" tab.
 - ✅ Modular plugin architecture
 - ✅ Asynchronous processing
 - ✅ Cross-platform compatibility
-- ✅ Professional GUI interface
+- ✅ Professional GUI and CLI interfaces
 
 ## 🔒 Security & Integrity
 
@@ -222,9 +306,16 @@ Contributions welcome! Areas of focus:
 - **Visualization**: Advanced reporting and graphics
 - **Legal Research**: Integration with legal databases
 
+### Development Workflow
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests
+5. Submit a pull request
+
 ## 📄 License
 
-[Specify your license here]
+MIT License - see [LICENSE](LICENSE) file for details.
 
 ## 🆘 Support
 
@@ -235,7 +326,7 @@ Contributions welcome! Areas of focus:
 ## 🎯 Roadmap
 
 ### Version 4.1 (Planned)
-- [ ] Enhanced AI integration
+- [ ] Enhanced AI integration with multiple providers
 - [ ] Real-time collaboration features
 - [ ] Cloud storage integration
 - [ ] Advanced visualization tools
