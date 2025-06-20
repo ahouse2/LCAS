@@ -1,8 +1,34 @@
 self.update_status("Processing stopped by user")
     
 def _run_preservation(self):
+        feat/ai-integration-fix
     """Run file preservation in background thread"""
     try: # Ensuring this line is exactly 4 spaces followed by try:
+
+        feat/ai-integration-fix
+    """Run file preservation in background thread"""
+    try: # Ensuring this line is exactly 4 spaces followed by try:
+
+        feat/ai-integration-fix
+    """Run file preservation in background thread"""
+    try: # Ensuring this line is exactly 4 spaces followed by try:
+
+        feat/ai-integration-fix
+    """Run file preservation in background thread"""
+    try: # Ensuring this line is exactly 4 spaces followed by try:
+
+        feat/ai-integration-fix
+    """Run file preservation in background thread"""
+    try: # Ensuring this line is exactly 4 spaces followed by try:
+
+      feat/ai-integration-fix
+    """Run file preservation in background thread"""
+    try:
+        main
+        main
+        main
+        main
+        main
         source_path = Path(self.source_var.get())
         target_path = Path(self.target_var.get())
 
@@ -23,6 +49,39 @@ def _run_preservation(self):
         for i, file_path in enumerate(files):
             if not self.is_processing:
                 break
+        feat/ai-integration-fix
+
+        feat/ai-integration-fix
+
+        feat/ai-integration-fix
+
+        feat/ai-integration-fix
+
+        feat/ai-integration-fix
+
+
+        """Run file preservation in background thread"""
+        try:
+            source_path = Path(self.source_var.get())
+            target_path = Path(self.target_var.get())
+            
+            self.root.after(0, self.log_status, "🚀 Starting file preservation...")
+            
+            # Create target structure
+            self.root.after(0, self.log_status, "📁 Creating folder structure...")
+            self.create_folder_structure(target_path)
+            
+            # Discover files
+            files = list(source_path.rglob("*"))
+            files = [f for f in files if f.is_file()]
+            
+            self.root.after(0, self.log_status, f"📋 Found {len(files)} files to preserve...")
+      main
+        main
+        main
+        main
+        main
+        main
             
             try:
                 # Calculate relative path
