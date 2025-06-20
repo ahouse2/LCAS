@@ -211,6 +211,9 @@ class LCASMainGUI:
         feat/ai-integration-fix
 
         feat/ai-integration-fix
+
+        feat/ai-integration-fix
+        main
         main
 
         ttk.Label(log_debug_frame, text="Plugins Directory:").grid(row=2, column=0, sticky=tk.W, padx=10, pady=5)
@@ -240,6 +243,8 @@ class LCASMainGUI:
         
         feat/ai-integration-fix
 
+        feat/ai-integration-fix
+
 
         
         ttk.Label(log_debug_frame, text="Plugins Directory:").grid(row=2, column=0, sticky=tk.W, padx=10, pady=5)
@@ -267,6 +272,7 @@ class LCASMainGUI:
         ttk.Label(analysis_params_frame, text="Admissibility Weight:").grid(row=2, column=2, sticky=tk.W, padx=10, pady=5)
         ttk.Entry(analysis_params_frame, textvariable=self.admissibility_weight_var, width=10).grid(row=2, column=3, padx=10, pady=5)
 
+        main
         main
         main
         # Processing Options Frame
@@ -652,7 +658,11 @@ class LCASMainGUI:
     def save_configuration(self):
         """Save current configuration"""
         if self.core:
+        feat/ai-integration-fix
+            # Update all config fields from GUI variables, ensuring 12-space indentation
+
             # Update all config fields from GUI variables
+        main
             self.core.config.case_name = self.case_name_var.get()
             self.core.config.source_directory = self.source_dir_var.get()
             self.core.config.target_directory = self.target_dir_var.get()
@@ -664,6 +674,13 @@ class LCASMainGUI:
             self.core.config.min_probative_score = self.min_probative_score_var.get()
             self.core.config.min_relevance_score = self.min_relevance_score_var.get()
             self.core.config.similarity_threshold = self.similarity_threshold_var.get()
+        feat/ai-integration-fix
+            
+            self.core.config.probative_weight = self.probative_weight_var.get()
+            self.core.config.relevance_weight = self.relevance_weight_var.get()
+            self.core.config.admissibility_weight = self.admissibility_weight_var.get()
+
+
         feat/ai-integration-fix
 
         feat/ai-integration-fix
@@ -681,6 +698,7 @@ class LCASMainGUI:
             self.core.config.relevance_weight = self.relevance_weight_var.get()
             self.core.config.admissibility_weight = self.admissibility_weight_var.get()
             
+        main
         main
         main
             self.core.config.enable_deduplication = self.enable_deduplication_var.get()
