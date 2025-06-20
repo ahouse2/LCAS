@@ -1,9 +1,14 @@
 self.update_status("Processing stopped by user")
     
 def _run_preservation(self):
+        feat/ai-integration-fix
+    """Run file preservation in background thread"""
+    try: # Ensuring this line is exactly 4 spaces followed by try:
+
       feat/ai-integration-fix
     """Run file preservation in background thread"""
     try:
+        main
         source_path = Path(self.source_var.get())
         target_path = Path(self.target_var.get())
 
@@ -24,6 +29,8 @@ def _run_preservation(self):
         for i, file_path in enumerate(files):
             if not self.is_processing:
                 break
+        feat/ai-integration-fix
+
 
         """Run file preservation in background thread"""
         try:
@@ -42,6 +49,7 @@ def _run_preservation(self):
             
             self.root.after(0, self.log_status, f"📋 Found {len(files)} files to preserve...")
       main
+        main
             
             try:
                 # Calculate relative path

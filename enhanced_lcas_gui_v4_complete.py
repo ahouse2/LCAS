@@ -72,6 +72,27 @@ def load_configuration(self):
 
 # Processing Methods
 def start_preservation(self):
+        feat/ai-integration-fix
+    """Start file preservation process"""
+    if self.is_processing:
+        messagebox.showwarning("Processing", "A process is already running!")
+        return
+    
+    source_path = Path(self.source_dir_entry.get())
+    target_path = Path(self.target_dir_entry.get())
+
+    if not source_path.exists():
+        messagebox.showerror("Directory Error", f"Source directory does not exist:\n{source_path}")
+        return
+
+    # Confirm with user
+    response = messagebox.askyesno(
+        "Start Preservation",
+        f"This will preserve files from:\n{source_path}\n\n"
+        f"To:\n{target_path}\n\n"
+        f"Continue?"
+    )
+
         """Start file preservation process"""
         if self.is_processing:
             messagebox.showwarning("Processing", "A process is already running!")
@@ -103,8 +124,21 @@ def start_preservation(self):
         
         self._set_processing_state(True, "preservation")
         self.processing_thread.start()
+        main
     
-    def start_complete_analysis(self):
+    if not response:
+        return
+
+    # Start preservation in background thread
+    self.processing_thread = threading.Thread(
+        target=self._run_preservation,
+        daemon=True
+    )
+
+    self._set_processing_state(True, "preservation")
+    self.processing_thread.start()
+
+def start_complete_analysis(self):
         """Start complete LCAS analysis"""
         if self.is_processing:
             messagebox.showwarning("Processing", "A process is already running!")
