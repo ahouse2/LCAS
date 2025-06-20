@@ -213,6 +213,9 @@ class LCASMainGUI:
         feat/ai-integration-fix
 
         feat/ai-integration-fix
+
+        feat/ai-integration-fix
+        main
         main
         main
 
@@ -240,6 +243,9 @@ class LCASMainGUI:
 
         ttk.Label(analysis_params_frame, text="Admissibility Weight:").grid(row=2, column=2, sticky=tk.W, padx=10, pady=5)
         ttk.Entry(analysis_params_frame, textvariable=self.admissibility_weight_var, width=10).grid(row=2, column=3, padx=10, pady=5)
+        feat/ai-integration-fix
+        
+
         
         feat/ai-integration-fix
 
@@ -272,6 +278,7 @@ class LCASMainGUI:
         ttk.Label(analysis_params_frame, text="Admissibility Weight:").grid(row=2, column=2, sticky=tk.W, padx=10, pady=5)
         ttk.Entry(analysis_params_frame, textvariable=self.admissibility_weight_var, width=10).grid(row=2, column=3, padx=10, pady=5)
 
+        main
         main
         main
         main
@@ -682,6 +689,13 @@ class LCASMainGUI:
 
 
         feat/ai-integration-fix
+            
+            self.core.config.probative_weight = self.probative_weight_var.get()
+            self.core.config.relevance_weight = self.relevance_weight_var.get()
+            self.core.config.admissibility_weight = self.admissibility_weight_var.get()
+
+
+        feat/ai-integration-fix
 
         feat/ai-integration-fix
         main
@@ -698,6 +712,7 @@ class LCASMainGUI:
             self.core.config.relevance_weight = self.relevance_weight_var.get()
             self.core.config.admissibility_weight = self.admissibility_weight_var.get()
             
+        main
         main
         main
         main
