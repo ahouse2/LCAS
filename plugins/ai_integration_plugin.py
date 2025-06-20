@@ -1617,7 +1617,10 @@ System Health: {status['system_health'].upper()}
 
         feat/ai-integration-fix
 
+        feat/ai-integration-fix
+
       feat/ai-integration-fix
+        main
         main
         main
 def create_enhanced_ai_plugin(lcas_config) -> "EnhancedAIFoundationPlugin":

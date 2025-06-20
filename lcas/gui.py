@@ -210,6 +210,9 @@ class LCASMainGUI:
                         variable=self.debug_mode_var).grid(row=1, column=0, columnspan=2, sticky=tk.W, padx=10, pady=5)
         feat/ai-integration-fix
 
+        feat/ai-integration-fix
+        main
+
         ttk.Label(log_debug_frame, text="Plugins Directory:").grid(row=2, column=0, sticky=tk.W, padx=10, pady=5)
         ttk.Entry(log_debug_frame, textvariable=self.plugins_dir_var, width=50).grid(row=2, column=1, padx=10, pady=5)
 
@@ -235,6 +238,8 @@ class LCASMainGUI:
         ttk.Label(analysis_params_frame, text="Admissibility Weight:").grid(row=2, column=2, sticky=tk.W, padx=10, pady=5)
         ttk.Entry(analysis_params_frame, textvariable=self.admissibility_weight_var, width=10).grid(row=2, column=3, padx=10, pady=5)
         
+        feat/ai-integration-fix
+
 
         
         ttk.Label(log_debug_frame, text="Plugins Directory:").grid(row=2, column=0, sticky=tk.W, padx=10, pady=5)
@@ -262,6 +267,7 @@ class LCASMainGUI:
         ttk.Label(analysis_params_frame, text="Admissibility Weight:").grid(row=2, column=2, sticky=tk.W, padx=10, pady=5)
         ttk.Entry(analysis_params_frame, textvariable=self.admissibility_weight_var, width=10).grid(row=2, column=3, padx=10, pady=5)
 
+        main
         main
         # Processing Options Frame
         proc_options_frame = ttk.LabelFrame(scrollable_frame, text="Processing Options")
@@ -659,17 +665,23 @@ class LCASMainGUI:
             self.core.config.min_relevance_score = self.min_relevance_score_var.get()
             self.core.config.similarity_threshold = self.similarity_threshold_var.get()
         feat/ai-integration-fix
+
+        feat/ai-integration-fix
+        main
             
             self.core.config.probative_weight = self.probative_weight_var.get()
             self.core.config.relevance_weight = self.relevance_weight_var.get()
             self.core.config.admissibility_weight = self.admissibility_weight_var.get()
 
+        feat/ai-integration-fix
+
 
 
             self.core.config.probative_weight = self.probative_weight_var.get()
             self.core.config.relevance_weight = self.relevance_weight_var.get()
             self.core.config.admissibility_weight = self.admissibility_weight_var.get()
             
+        main
         main
             self.core.config.enable_deduplication = self.enable_deduplication_var.get()
             self.core.config.enable_advanced_nlp = self.enable_advanced_nlp_var.get()
