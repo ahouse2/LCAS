@@ -85,13 +85,13 @@ REM Install requirements
 echo Installing requirements...
 python - m pip install - r requirements.txt
 if errorlevel 1 (
-    echo ❌ Failed to install requirements
+    echo Error: Failed to install requirements
     pause
     exit / b 1
 )
 
 REM Install spaCy model
-echo 🔄 Installing spaCy English model...
+echo INFO: Installing spaCy English model...
 python - m spacy download en_core_web_sm
 
 REM Create config directory
@@ -101,7 +101,7 @@ REM Run installation helper
 python install.py
 
 echo.
-echo 🎉 LCAS Installation Complete!
+echo SUCCESS: LCAS Installation Complete!
 echo.
 echo Next steps:
 echo 1. Configure settings in config / lcas_config.yaml
