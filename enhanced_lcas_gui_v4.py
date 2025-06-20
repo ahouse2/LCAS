@@ -1,7 +1,8 @@
 self.update_status("Processing stopped by user")
-    
+
+
 def _run_preservation(self):
-        feat/ai-integration-fix
+        feat / ai - integration - fix
     """Run file preservation in background thread"""
     try: # Ensuring this line is exactly 4 spaces followed by try:
 

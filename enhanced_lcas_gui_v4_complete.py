@@ -5,6 +5,7 @@ Continuation of the complete GUI implementation
 
 # ... continuing from previous part ...
 
+
 def save_configuration(self):
     """Save current configuration"""
     try:
@@ -23,11 +24,15 @@ def save_configuration(self):
         with open(config_dir / "lcas_config.json", "w") as f:
             json.dump(config_data, f, indent=2)
 
-        messagebox.showinfo("Configuration Saved", "Configuration saved successfully!")
+        messagebox.showinfo(
+    "Configuration Saved",
+     "Configuration saved successfully!")
         self.update_status("Configuration saved")
 
     except Exception as e:
-        messagebox.showerror("Save Error", f"Failed to save configuration: {e}")
+        messagebox.showerror("Save Error",
+     f"Failed to save configuration: {e}")
+
 
 def load_configuration(self):
     """Load configuration from file"""
@@ -36,19 +41,23 @@ def load_configuration(self):
         if config_file.exists():
             with open(config_file, "r") as f:
                 config_data = json.load(f)
-            
+
             # Update GUI elements
             self.source_dir_entry.delete(0, "end")
-            self.source_dir_entry.insert(0, config_data.get("source_directory", ""))
-            
+            self.source_dir_entry.insert(
+    0, config_data.get(
+        "source_directory", ""))
+
             self.target_dir_entry.delete(0, "end")
-            self.target_dir_entry.insert(0, config_data.get("target_directory", ""))
-            
+            self.target_dir_entry.insert(
+    0, config_data.get(
+        "target_directory", ""))
+
             if config_data.get("ai_enabled", True):
                 self.ai_enabled_checkbox.select()
             else:
                 self.ai_enabled_checkbox.deselect()
-            
+
             if config_data.get("advanced_nlp", True):
                 self.advanced_nlp_checkbox.select()
             else:
@@ -59,30 +68,38 @@ def load_configuration(self):
             else:
                 self.semantic_clustering_checkbox.deselect()
 
-            self.analysis_depth_menu.set(config_data.get("analysis_depth", "comprehensive"))
+            self.analysis_depth_menu.set(
+    config_data.get(
+        "analysis_depth",
+         "comprehensive"))
 
-            self.config_status_label.configure(text="⚙️ Configuration: Loaded ✅")
+            self.config_status_label.configure(
+                text="⚙️ Configuration: Loaded ✅")
             self.update_status("Configuration loaded")
 
         else:
-            messagebox.showinfo("No Configuration", "No configuration file found. Using defaults.")
+            messagebox.showinfo("No Configuration",
+     "No configuration file found. Using defaults.")
 
     except Exception as e:
-        messagebox.showerror("Load Error", f"Failed to load configuration: {e}")
+        messagebox.showerror("Load Error",
+     f"Failed to load configuration: {e}")
 
 # Processing Methods
+
+
 def start_preservation(self):
-        feat/ai-integration-fix
+        feat / ai - integration - fix
 
-        feat/ai-integration-fix
+        feat / ai - integration - fix
 
-        feat/ai-integration-fix
+        feat / ai - integration - fix
 
-        feat/ai-integration-fix
+        feat / ai - integration - fix
 
-        feat/ai-integration-fix
+        feat / ai - integration - fix
 
-        feat/ai-integration-fix
+        feat / ai - integration - fix
         main
         main
         main

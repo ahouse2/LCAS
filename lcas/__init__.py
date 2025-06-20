@@ -20,13 +20,16 @@ VERSION_INFO = {
     "release": "stable"
 }
 
+
 def get_version():
     """Get the current version string"""
     return __version__
 
+
 def get_version_info():
     """Get detailed version information"""
     return VERSION_INFO
+
 
 # Package-level configuration
 DEFAULT_CONFIG = {
@@ -39,7 +42,7 @@ DEFAULT_CONFIG = {
 
 __all__ = [
     "LCASCore",
-    "LCASConfig", 
+    "LCASConfig",
     "PluginManager",
     "PluginInterface",
     "get_version",

@@ -9,25 +9,38 @@ import sys
 import os
 from pathlib import Path
 
+
 def run_command(cmd, description):
     """Run a command and handle errors"""
     print(f"🔄 {description}...")
     try:
-        result = subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
+        result = subprocess.run(
+            cmd,
+            shell=True,
+            check=True,
+            capture_output=True,
+            text=True)
         print(f"✅ {description} completed successfully")
         return True
     except subprocess.CalledProcessError as e:
         print(f"❌ {description} failed: {e.stderr}")
         return False
 
+
 def check_python_version():
     """Check if Python version is compatible"""
     version = sys.version_info
     if version.major != 3 or version.minor < 9:
-        print(f"❌ Python 3.9+ required. Current version: {version.major}.{version.minor}")
+        print(
+            f"❌ Python 3.9+ required. Current version: {version.major}.{version.minor}")
         return False
-    print(f"✅ Python version {version.major}.{version.minor}.{version.micro} is compatible")
+    print(
+        f"✅ Python version {
+            version.major}.{
+            version.minor}.{
+                version.micro} is compatible")
     return True
+
 
 def install_package():
     """Install LCAS package"""
@@ -35,16 +48,17 @@ def install_package():
     try:
         # Install in development mode if setup.py exists
         if Path("setup.py").exists():
-            result = subprocess.run([sys.executable, "-m", "pip", "install", "-e", "."], 
-                                  check=True, capture_output=True, text=True)
+            result = subprocess.run([sys.executable, "-m", "pip", "install", "-e", "."],
+                                    check=True, capture_output=True, text=True)
         else:
-            result = subprocess.run([sys.executable, "-m", "pip", "install", "lcas"], 
-                                  check=True, capture_output=True, text=True)
+            result = subprocess.run([sys.executable, "-m", "pip", "install", "lcas"],
+                                    check=True, capture_output=True, text=True)
         print("✅ LCAS package installed successfully")
         return True
     except subprocess.CalledProcessError as e:
         print(f"❌ Failed to install LCAS package: {e.stderr}")
         return False
+
 
 def install_optional_features():
     """Install optional features"""
@@ -54,20 +68,22 @@ def install_optional_features():
         "gui": "Enhanced GUI components",
         "dev": "Development tools"
     }
-    
+
     for feature, description in features.items():
         choice = input(f"\n🔧 Install {description}? (y/N): ").strip().lower()
         if choice == 'y':
-            if run_command(f"{sys.executable} -m pip install lcas[{feature}]", f"Installing {feature} features"):
+            if run_command(
+                    f"{sys.executable} -m pip install lcas[{feature}]", f"Installing {feature} features"):
                 print(f"✅ {description} installed")
             else:
                 print(f"❌ Failed to install {description}")
+
 
 def create_config_files():
     """Create default configuration files"""
     config_dir = Path("config")
     config_dir.mkdir(exist_ok=True)
-    
+
     # Create default LCAS config
     default_config = """{
   "case_name": "",
@@ -93,56 +109,59 @@ def create_config_files():
   "generate_visualizations": true,
   "max_concurrent_files": 5
 }"""
-    
+
     config_file = config_dir / "lcas_config.json"
     if not config_file.exists():
         with open(config_file, 'w') as f:
             f.write(default_config)
         print("✅ Default configuration file created")
 
+
 def test_installation():
     """Test the installation"""
     print("🔄 Testing installation...")
     try:
         # Test import
-        result = subprocess.run([sys.executable, "-c", "import lcas; print(lcas.get_version())"], 
-                              check=True, capture_output=True, text=True)
+        result = subprocess.run([sys.executable, "-c", "import lcas; print(lcas.get_version())"],
+                                check=True, capture_output=True, text=True)
         version = result.stdout.strip()
         print(f"✅ LCAS v{version} installed and working correctly")
-        
+
         # Test CLI
-        result = subprocess.run([sys.executable, "-m", "lcas.cli", "--help"], 
-                              check=True, capture_output=True, text=True)
+        result = subprocess.run([sys.executable, "-m", "lcas.cli", "--help"],
+                                check=True, capture_output=True, text=True)
         print("✅ CLI interface working")
-        
+
         return True
     except subprocess.CalledProcessError as e:
         print(f"❌ Installation test failed: {e.stderr}")
         return False
 
+
 def main():
     """Main installation function"""
     print("🚀 LCAS Installation Helper")
     print("=" * 50)
-    
+
     # Check Python version
     if not check_python_version():
         sys.exit(1)
-    
+
     # Install main package
-    if not run_command(f"{sys.executable} -m pip install --upgrade pip", "Upgrading pip"):
+    if not run_command(
+            f"{sys.executable} -m pip install --upgrade pip", "Upgrading pip"):
         print("⚠️ Pip upgrade failed, continuing anyway...")
-    
+
     if not install_package():
         print("❌ Failed to install LCAS package. Please check the error messages above.")
         sys.exit(1)
-    
+
     # Install optional features
     install_optional_features()
-    
+
     # Create config files
     create_config_files()
-    
+
     # Test installation
     if test_installation():
         print("\n" + "=" * 50)
@@ -153,8 +172,10 @@ def main():
         print("3. Or use CLI: lcas-cli --help")
         print("\nFor help, visit: https://github.com/ahouse2/LCAS")
     else:
-        print("\n❌ Installation completed but tests failed. Please check the error messages.")
+        print(
+            "\n❌ Installation completed but tests failed. Please check the error messages.")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

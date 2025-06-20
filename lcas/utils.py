@@ -14,6 +14,7 @@ import shutil
 
 logger = logging.getLogger(__name__)
 
+
 def calculate_file_hash(file_path: Path, algorithm: str = "sha256") -> str:
     """Calculate hash of a file"""
     try:
@@ -26,6 +27,7 @@ def calculate_file_hash(file_path: Path, algorithm: str = "sha256") -> str:
         logger.error(f"Error calculating hash for {file_path}: {e}")
         return ""
 
+
 def ensure_directory(directory_path: Path) -> bool:
     """Ensure directory exists, create if necessary"""
     try:
@@ -35,29 +37,31 @@ def ensure_directory(directory_path: Path) -> bool:
         logger.error(f"Error creating directory {directory_path}: {e}")
         return False
 
+
 def copy_file_with_verification(source: Path, target: Path) -> bool:
     """Copy file and verify integrity with hash comparison"""
     try:
         # Ensure target directory exists
         ensure_directory(target.parent)
-        
+
         # Copy file
         shutil.copy2(source, target)
-        
+
         # Verify integrity
         source_hash = calculate_file_hash(source)
         target_hash = calculate_file_hash(target)
-        
+
         if source_hash == target_hash:
             logger.debug(f"File copied and verified: {source} -> {target}")
             return True
         else:
             logger.error(f"Hash mismatch after copy: {source} -> {target}")
             return False
-            
+
     except Exception as e:
         logger.error(f"Error copying file {source} -> {target}: {e}")
         return False
+
 
 def load_json_file(file_path: Path) -> Optional[Dict[str, Any]]:
     """Load JSON file safely"""
@@ -67,6 +71,7 @@ def load_json_file(file_path: Path) -> Optional[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"Error loading JSON file {file_path}: {e}")
         return None
+
 
 def save_json_file(data: Dict[str, Any], file_path: Path) -> bool:
     """Save data to JSON file safely"""
@@ -78,6 +83,7 @@ def save_json_file(data: Dict[str, Any], file_path: Path) -> bool:
     except Exception as e:
         logger.error(f"Error saving JSON file {file_path}: {e}")
         return False
+
 
 def get_file_info(file_path: Path) -> Dict[str, Any]:
     """Get comprehensive file information"""
@@ -95,18 +101,20 @@ def get_file_info(file_path: Path) -> Dict[str, Any]:
         logger.error(f"Error getting file info for {file_path}: {e}")
         return {}
 
+
 def format_file_size(size_bytes: int) -> str:
     """Format file size in human readable format"""
     if size_bytes == 0:
         return "0 B"
-    
+
     size_names = ["B", "KB", "MB", "GB", "TB"]
     i = 0
     while size_bytes >= 1024 and i < len(size_names) - 1:
         size_bytes /= 1024.0
         i += 1
-    
+
     return f"{size_bytes:.1f} {size_names[i]}"
+
 
 def sanitize_filename(filename: str) -> str:
     """Sanitize filename for safe filesystem usage"""
@@ -114,30 +122,35 @@ def sanitize_filename(filename: str) -> str:
     invalid_chars = '<>:"/\\|?*'
     for char in invalid_chars:
         filename = filename.replace(char, '_')
-    
+
     # Limit length
     if len(filename) > 255:
-        name, ext = filename.rsplit('.', 1) if '.' in filename else (filename, '')
+        name, ext = filename.rsplit(
+            '.', 1) if '.' in filename else (
+            filename, '')
         max_name_length = 255 - len(ext) - 1 if ext else 255
         filename = name[:max_name_length] + ('.' + ext if ext else '')
-    
+
     return filename
 
-def create_folder_structure(base_path: Path, structure: Dict[str, List[str]]) -> bool:
+
+def create_folder_structure(
+        base_path: Path, structure: Dict[str, List[str]]) -> bool:
     """Create standardized folder structure"""
     try:
         for main_folder, subfolders in structure.items():
             main_path = base_path / main_folder
             ensure_directory(main_path)
-            
+
             for subfolder in subfolders:
                 sub_path = main_path / subfolder
                 ensure_directory(sub_path)
-        
+
         return True
     except Exception as e:
         logger.error(f"Error creating folder structure: {e}")
         return False
+
 
 def get_supported_file_extensions() -> Dict[str, List[str]]:
     """Get supported file extensions by category"""
@@ -151,72 +164,89 @@ def get_supported_file_extensions() -> Dict[str, List[str]]:
         "video": [".mp4", ".avi", ".mov", ".wmv"]
     }
 
+
 def is_supported_file(file_path: Path) -> bool:
     """Check if file type is supported"""
     extension = file_path.suffix.lower()
     supported_extensions = get_supported_file_extensions()
-    
+
     for category, extensions in supported_extensions.items():
         if extension in extensions:
             return True
-    
+
     return False
+
 
 def generate_timestamp() -> str:
     """Generate timestamp string for logging/naming"""
     return datetime.now().strftime("%Y%m%d_%H%M%S")
 
-def setup_logging(log_level: str = "INFO", log_file: Optional[str] = None) -> logging.Logger:
+
+def setup_logging(log_level: str = "INFO",
+                  log_file: Optional[str] = None) -> logging.Logger:
     """Setup logging configuration"""
     handlers = [logging.StreamHandler()]
-    
+
     if log_file:
         handlers.append(logging.FileHandler(log_file))
-    
+
     logging.basicConfig(
         level=getattr(logging, log_level.upper()),
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=handlers
     )
-    
+
     return logging.getLogger(__name__)
+
 
 class ProgressTracker:
     """Simple progress tracking utility"""
-    
+
     def __init__(self, total: int, description: str = "Processing"):
         self.total = total
         self.current = 0
         self.description = description
-        
+
     def update(self, increment: int = 1):
         """Update progress"""
         self.current += increment
         percentage = (self.current / self.total) * 100 if self.total > 0 else 0
-        print(f"\r{self.description}: {self.current}/{self.total} ({percentage:.1f}%)", end="", flush=True)
-        
+        print(
+            f"\r{
+                self.description}: {
+                self.current}/{
+                self.total} ({
+                    percentage:.1f}%)",
+            end="",
+            flush=True)
+
     def complete(self):
         """Mark as complete"""
         print(f"\r{self.description}: Complete ({self.total}/{self.total})")
 
-def validate_config(config: Dict[str, Any], required_fields: List[str]) -> List[str]:
+
+def validate_config(config: Dict[str, Any],
+                    required_fields: List[str]) -> List[str]:
     """Validate configuration has required fields"""
     missing_fields = []
-    
+
     for field in required_fields:
         if field not in config or not config[field]:
             missing_fields.append(field)
-    
+
     return missing_fields
 
-def merge_dictionaries(dict1: Dict[str, Any], dict2: Dict[str, Any]) -> Dict[str, Any]:
+
+def merge_dictionaries(dict1: Dict[str, Any],
+                       dict2: Dict[str, Any]) -> Dict[str, Any]:
     """Merge two dictionaries recursively"""
     result = dict1.copy()
-    
+
     for key, value in dict2.items():
-        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+        if key in result and isinstance(
+                result[key], dict) and isinstance(value, dict):
             result[key] = merge_dictionaries(result[key], value)
         else:
             result[key] = value
-    
+
     return result
