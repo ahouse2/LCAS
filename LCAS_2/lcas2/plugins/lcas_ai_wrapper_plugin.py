@@ -7,10 +7,10 @@ Integrates the EnhancedAIFoundationPlugin into the LCAS plugin system.
 import asyncio
 import logging
 from typing import Dict, List, Any, Optional
+from pathlib import Path # Added for path resolution
 
-from lcas2.core import AnalysisPlugin, LCASCore # Updated import
-# ai_integration_plugin is in the same directory (lcas2/plugins)
-from .ai_integration_plugin import EnhancedAIFoundationPlugin
+from lcas2.core import AnalysisPlugin, LCASCore, LCASConfig, CaseTheoryConfig # Updated import
+from .ai_integration_plugin import EnhancedAIFoundationPlugin, AIConfigSettings
 
 logger = logging.getLogger(__name__)
 
@@ -30,158 +30,157 @@ class LCASAIWrapperPlugin(AnalysisPlugin):
 
     @property
     def version(self) -> str:
-        return "1.0.0"
+        return "1.1.0" # Version updated
 
     @property
     def description(self) -> str:
-        return "Integrates advanced AI analysis capabilities (OpenAI, Anthropic, Local) into LCAS."
+        return "Integrates advanced AI analysis capabilities using settings from LCASConfig and ai_config.json."
 
     @property
     def dependencies(self) -> List[str]:
-        # These are Python package dependencies, not other LCAS plugins.
-        # The actual AI SDKs are handled by ai_integration_plugin.py's imports
-        # and the main requirements.txt / setup.py.
-        return ["openai", "anthropic", "httpx", "requests"]
+        # Informational; actual dependencies are managed by the project environment.
+        return ["openai", "anthropic", "httpx", "requests"] # httpx and requests are for local models if used
 
     async def initialize(self, core_app: LCASCore) -> bool:
         """Initialize the plugin and the wrapped AI foundation plugin."""
         self.lcas_core = core_app
         logger.info(f"{self.name}: Initializing...")
         try:
-            # The EnhancedAIFoundationPlugin loads its own config from 'config/ai_config.json'
-            # or creates a default one.
-            # We need to ensure that 'config/ai_config.json' is discoverable.
-            # For now, we assume 'config/' is in the root directory where LCAS
-            # is run.
-            self.ai_foundation = EnhancedAIFoundationPlugin(
-                config_path="config/ai_config.json")
+            # Determine the absolute path for ai_config.json
+            # ai_config_path in LCASConfig is relative to project root.
+            project_root = Path(__file__).parent.parent.parent # Assumes this plugin is in LCAS_2/lcas2/plugins
+            ai_conf_path_str = self.lcas_core.config.ai_config_path
+            absolute_ai_config_path = project_root / ai_conf_path_str
 
-            if not self.ai_foundation.config:
-                logger.error(
-                    f"{self.name}: Failed to load AI foundation configuration.")
+            logger.info(f"{self.name}: Loading AI Foundation with config: {absolute_ai_config_path}")
+
+            self.ai_foundation = EnhancedAIFoundationPlugin(config_path=str(absolute_ai_config_path))
+
+            if not self.ai_foundation.config: # Check if underlying config loaded
+                logger.error(f"{self.name}: Failed to load AI foundation's internal configuration from {absolute_ai_config_path}.")
                 return False
 
-            # Check provider availability
+            # Synchronize AI foundation's user_settings with LCASConfig
+            self._sync_ai_user_settings()
+
             status = self.ai_foundation.get_comprehensive_status()
-            available_providers = [p for p, s in status.get(
-                "providers", {}).items() if s.get("available")]
+            available_providers = [p for p, s in status.get("providers", {}).items() if s.get("available")]
             if not available_providers:
-                logger.warning(
-                    f"{self.name}: No AI providers seem to be available/configured in 'config/ai_config.json'.")
-                logger.warning(
-                    f"{self.name}: Please ensure API keys are set in 'config/ai_config.json'.")
+                logger.warning(f"{self.name}: No AI providers seem to be available/configured in '{absolute_ai_config_path}'. Ensure API keys are set.")
             else:
-                logger.info(
-                    f"{self.name}: Available AI providers: {available_providers}")
+                logger.info(f"{self.name}: Available AI providers: {available_providers}")
 
             logger.info(f"{self.name}: Initialized successfully.")
             return True
         except Exception as e:
-            logger.error(
-                f"{self.name}: Error during initialization: {e}", exc_info=True)
+            logger.error(f"{self.name}: Error during initialization: {e}", exc_info=True)
             return False
+
+    def _sync_ai_user_settings(self):
+        """Synchronizes AIFoundationPlugin's user_settings with LCASCore's config."""
+        if not self.ai_foundation or not self.lcas_core:
+            return
+
+        lcas_conf = self.lcas_core.config
+        ai_user_settings_updates = {}
+
+        if hasattr(lcas_conf, 'case_theory') and isinstance(lcas_conf.case_theory, CaseTheoryConfig):
+            ai_user_settings_updates['case_type'] = lcas_conf.case_theory.case_type
+
+        if hasattr(lcas_conf, 'ai_analysis_depth'):
+            ai_user_settings_updates['analysis_depth'] = lcas_conf.ai_analysis_depth
+
+        if hasattr(lcas_conf, 'ai_confidence_threshold'):
+            ai_user_settings_updates['confidence_threshold'] = lcas_conf.ai_confidence_threshold
+
+        # Add any other relevant mappings here
+        # Example: if LCASConfig had a 'jurisdiction' field for AI
+        # if hasattr(lcas_conf, 'jurisdiction_for_ai'):
+        #    ai_user_settings_updates['jurisdiction'] = lcas_conf.jurisdiction_for_ai
+
+        if ai_user_settings_updates:
+            self.ai_foundation.update_user_settings(**ai_user_settings_updates)
+            logger.info(f"{self.name}: Synchronized AI Foundation user_settings: {ai_user_settings_updates}")
+
 
     async def cleanup(self) -> None:
         """Cleanup resources."""
         logger.info(f"{self.name}: Cleaning up.")
-        self.ai_foundation = None
+        self.ai_foundation = None # Allow GC
         self.lcas_core = None
 
     async def analyze(self, data: Any) -> Dict[str, Any]:
         """
         Perform AI analysis on the provided data.
-        'data' is expected to be a dictionary from LCASCore, containing:
-        - 'file_content': The text content of the file.
+        'data' is expected to be a dictionary potentially containing:
+        - 'file_content': The text content of the file to analyze.
         - 'file_path': The path to the file being analyzed.
-        - 'case_context': Optional dictionary with case-specific context.
+        - 'text_to_analyze': Alternative to file_content for direct text.
+        - 'analysis_type': Specific type of analysis for AI (e.g., 'document_summary', 'legal_theory_check').
+                           If not provided, EnhancedAIFoundationPlugin might run its default agent sequence.
+        - 'case_context': Optional dictionary with runtime case-specific context.
         """
         if not self.ai_foundation:
             logger.error(f"{self.name}: AI Foundation not initialized.")
             return {"error": "AI Foundation not initialized", "success": False}
 
-        file_content = data.get("file_content")
-        file_path = data.get("file_path", "unknown_file")
+        # Ensure settings are fresh if config could change dynamically (e.g. via GUI)
+        self._sync_ai_user_settings()
 
-        # Extract relevant context for the AI plugin
-        # The LCASCore config might have case_name, etc.
-        # The EnhancedAIFoundationPlugin uses its own user_settings for case_type, jurisdiction
-        # We can pass additional runtime context if available
-        lcas_config = self.lcas_core.config if self.lcas_core else None
-        case_context = {
-            "lcas_case_name": lcas_config.case_name if lcas_config else "Unknown Case",
-            # Add other relevant details from lcas_config or data if needed
-        }
+        content_to_analyze = data.get("file_content", data.get("text_to_analyze"))
+        file_path = data.get("file_path", "unknown_source")
+        # analysis_task_type = data.get("analysis_type") # For more granular control in future
 
-        # Update AI plugin's user settings if they can be derived from LCAS config
-        # This is an example; actual mapping might differ based on available
-        # config fields
-        if lcas_config and hasattr(
-                lcas_config, 'case_type_for_ai'):  # Fictional field
-            self.ai_foundation.update_user_settings(
-                case_type=lcas_config.case_type_for_ai)
-        if lcas_config and hasattr(
-                lcas_config, 'jurisdiction_for_ai'):  # Fictional field
-            self.ai_foundation.update_user_settings(
-                jurisdiction=lcas_config.jurisdiction_for_ai)
+        if content_to_analyze is None: # Check for None explicitly, as empty string might be valid
+            logger.warning(f"{self.name}: No content provided for AI analysis (file_path: {file_path}).")
+            return {"error": "No content (file_content or text_to_analyze) provided.", "file_path": file_path, "success": False}
 
-        logger.info(f"{self.name}: Analyzing file: {file_path} with AI.")
+        # Prepare runtime context for AI
+        lcas_conf = self.lcas_core.config
+        runtime_context = data.get("case_context", {})
+        if lcas_conf:
+            runtime_context.setdefault("lcas_case_name", lcas_conf.case_name)
+            runtime_context.setdefault("lcas_case_type", lcas_conf.case_theory.case_type)
+            # Add other details from lcas_conf.case_theory if they are relevant at runtime
+
+        logger.info(f"{self.name}: Analyzing content for: {file_path} with AI.")
+        logger.debug(f"{self.name}: AI User Settings: {self.ai_foundation.user_settings}")
+        logger.debug(f"{self.name}: Runtime Context for AI: {runtime_context}")
+
 
         try:
-            # The EnhancedAIFoundationPlugin's analyze_file_content expects:
-            # content: str, file_path: str = "", context: Dict[str, Any] = None
+            # EnhancedAIFoundationPlugin.analyze_file_content runs multiple agents.
+            # If a more specific agent call is needed, the 'data' dict would need to specify that,
+            # and this wrapper would need logic to call the specific agent method on ai_foundation.
+            # For now, using the general analyze_file_content which runs configured agents.
             ai_results = await self.ai_foundation.analyze_file_content(
-                content=file_content,
+                content=content_to_analyze,
                 file_path=file_path,
-                context=case_context  # Pass LCAS case context to AI plugin
+                context=runtime_context
             )
 
-            # Check if rate limited
             if ai_results.get("rate_limited"):
-                logger.warning(
-                    f"{self.name}: AI analysis for {file_path} was skipped due to rate limits.")
-                return {
-                    "status": "skipped_rate_limited",
-                    "message": ai_results.get("message"),
-                    "file_path": file_path,
-                    "success": False  # Or True, depending on how LCAS should treat this
-                }
+                logger.warning(f"{self.name}: AI analysis for {file_path} was skipped due to rate limits: {ai_results.get('message')}")
+                return {"status": "skipped_rate_limited", "message": ai_results.get("message"), "file_path": file_path, "success": False}
 
-            # Adapt the results to a format expected by LCASCore if necessary.
-            # For now, assume the raw ai_results are suitable or that consuming plugins/UI can handle them.
-            # The EnhancedAIFoundationPlugin already structures its output
-            # well.
-
-            # Example: Flatten results from multiple agents if needed, or
-            # select primary
             final_result = {
                 "status": "success",
                 "file_path": file_path,
-                # Contains results from each agent (doc_intel, legal_analysis)
-                "provider_results": ai_results,
-                "summary": "AI analysis performed.",  # Generic summary
+                "provider_results": ai_results, # Contains results from each agent ran by EnhancedAIFoundationPlugin
+                "summary": "AI analysis performed.", # Generic summary, can be improved
                 "success": True
             }
 
-            # Potentially extract a top-level summary or key findings if possible
-            # This depends on how the GUI or other parts of LCAS expect to consume results.
-            # For example, trying to get a summary from the
-            # 'document_intelligence' agent:
-            doc_intel_res = ai_results.get(
-                "document_intelligence", {}).get(
-                "findings", {})
-            if doc_intel_res and isinstance(
-                    doc_intel_res, dict) and "summary" in doc_intel_res:
-                final_result["summary"] = doc_intel_res["summary"]
-            elif isinstance(doc_intel_res, str):  # If findings itself is a string summary
-                final_result["summary"] = doc_intel_res
+            # Attempt to extract a more specific summary, e.g., from document_intelligence agent
+            if isinstance(ai_results, dict):
+                doc_intel_res = ai_results.get("document_intelligence", {}).get("findings", {})
+                if isinstance(doc_intel_res, dict) and "summary" in doc_intel_res:
+                    final_result["summary"] = doc_intel_res["summary"]
+                elif isinstance(doc_intel_res, str) and doc_intel_res: # If findings itself is a string summary
+                    final_result["summary"] = doc_intel_res[:500] # Truncate if too long
 
             return final_result
 
         except Exception as e:
-            logger.error(
-                f"{self.name}: Error during AI analysis for {file_path}: {e}", exc_info=True)
+            logger.error(f"{self.name}: Error during AI analysis for {file_path}: {e}", exc_info=True)
             return {"error": str(e), "file_path": file_path, "success": False}
-
-# To ensure PluginManager can find this class by a predictable name:
-# The PluginManager converts 'lcas_ai_wrapper_plugin.py' to 'LcasAiWrapperPlugin'
-# This class is named LCASAIWrapperPlugin, which should work.

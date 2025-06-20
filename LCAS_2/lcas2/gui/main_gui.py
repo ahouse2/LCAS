@@ -352,6 +352,73 @@ class LCASMainGUI(ctk.CTk):
         theme_menu = ctk.CTkOptionMenu(general_settings_frame, variable=self.theme_var, values=["light", "dark", "system"], command=self._change_theme)
         theme_menu.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
 
+
+        # Additional Analysis & Processing Settings Frame
+        adv_settings_frame = ctk.CTkFrame(panel)
+        adv_settings_frame.pack(fill="x", pady=10, padx=10)
+        adv_settings_frame.grid_columnconfigure(1, weight=0) # Label column
+        adv_settings_frame.grid_columnconfigure(3, weight=0) # Label column
+        adv_settings_frame.grid_columnconfigure(5, weight=1) # Entry/widget column (flexible)
+
+
+        ctk.CTkLabel(adv_settings_frame, text="Advanced Settings", font=ctk.CTkFont(size=16, weight="bold")).grid(row=0, column=0, columnspan=6, padx=5, pady=(5,10), sticky="w")
+
+        # Debug Mode
+        ctk.CTkLabel(adv_settings_frame, text="Debug Mode:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        self.debug_mode_var = ctk.BooleanVar()
+        ctk.CTkCheckBox(adv_settings_frame, text="", variable=self.debug_mode_var).grid(row=1, column=1, padx=5, pady=5, sticky="w")
+
+        # Log Level
+        ctk.CTkLabel(adv_settings_frame, text="Log Level:").grid(row=1, column=2, padx=5, pady=5, sticky="w")
+        self.log_level_var = ctk.StringVar()
+        ctk.CTkOptionMenu(adv_settings_frame, variable=self.log_level_var, values=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]).grid(row=1, column=3, columnspan=2, padx=5, pady=5, sticky="ew")
+
+        # Min Probative Score
+        ctk.CTkLabel(adv_settings_frame, text="Min Probative Score:").grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        self.min_probative_score_var = ctk.DoubleVar()
+        ctk.CTkEntry(adv_settings_frame, textvariable=self.min_probative_score_var, width=80).grid(row=2, column=1, padx=5, pady=5, sticky="w")
+
+        # Min Relevance Score
+        ctk.CTkLabel(adv_settings_frame, text="Min Relevance Score:").grid(row=2, column=2, padx=5, pady=5, sticky="w")
+        self.min_relevance_score_var = ctk.DoubleVar()
+        ctk.CTkEntry(adv_settings_frame, textvariable=self.min_relevance_score_var, width=80).grid(row=2, column=3, padx=5, pady=5, sticky="w")
+
+        # Similarity Threshold
+        ctk.CTkLabel(adv_settings_frame, text="Similarity Threshold:").grid(row=3, column=0, padx=5, pady=5, sticky="w")
+        self.similarity_threshold_var = ctk.DoubleVar()
+        ctk.CTkEntry(adv_settings_frame, textvariable=self.similarity_threshold_var, width=80).grid(row=3, column=1, padx=5, pady=5, sticky="w")
+
+        # Max Concurrent Files
+        ctk.CTkLabel(adv_settings_frame, text="Max Concurrent Files:").grid(row=3, column=2, padx=5, pady=5, sticky="w")
+        self.max_concurrent_files_var = ctk.IntVar()
+        ctk.CTkEntry(adv_settings_frame, textvariable=self.max_concurrent_files_var, width=80).grid(row=3, column=3, padx=5, pady=5, sticky="w")
+
+        # Probative Weight
+        ctk.CTkLabel(adv_settings_frame, text="Probative Weight:").grid(row=4, column=0, padx=5, pady=5, sticky="w")
+        self.probative_weight_var = ctk.DoubleVar()
+        ctk.CTkEntry(adv_settings_frame, textvariable=self.probative_weight_var, width=80).grid(row=4, column=1, padx=5, pady=5, sticky="w")
+
+        # Relevance Weight
+        ctk.CTkLabel(adv_settings_frame, text="Relevance Weight:").grid(row=4, column=2, padx=5, pady=5, sticky="w")
+        self.relevance_weight_var = ctk.DoubleVar()
+        ctk.CTkEntry(adv_settings_frame, textvariable=self.relevance_weight_var, width=80).grid(row=4, column=3, padx=5, pady=5, sticky="w")
+
+        # Admissibility Weight
+        ctk.CTkLabel(adv_settings_frame, text="Admissibility Weight:").grid(row=5, column=0, padx=5, pady=5, sticky="w")
+        self.admissibility_weight_var = ctk.DoubleVar()
+        ctk.CTkEntry(adv_settings_frame, textvariable=self.admissibility_weight_var, width=80).grid(row=5, column=1, padx=5, pady=5, sticky="w")
+
+        # Boolean Processing Options
+        ctk.CTkLabel(adv_settings_frame, text="Processing Options:").grid(row=6, column=0, padx=5, pady=10, sticky="w")
+        self.enable_deduplication_var = ctk.BooleanVar()
+        ctk.CTkCheckBox(adv_settings_frame, text="Enable Deduplication", variable=self.enable_deduplication_var).grid(row=7, column=0, columnspan=2, padx=10, pady=2, sticky="w")
+
+        self.enable_advanced_nlp_var = ctk.BooleanVar()
+        ctk.CTkCheckBox(adv_settings_frame, text="Enable Advanced NLP", variable=self.enable_advanced_nlp_var).grid(row=7, column=2, columnspan=2, padx=10, pady=2, sticky="w")
+
+        self.generate_visualizations_var = ctk.BooleanVar()
+        ctk.CTkCheckBox(adv_settings_frame, text="Generate Visualizations", variable=self.generate_visualizations_var).grid(row=8, column=0, columnspan=2, padx=10, pady=2, sticky="w")
+
         # Save All Config Button
         ctk.CTkButton(panel, text="💾 Save All Configurations", command=self.save_app_config).pack(pady=20, padx=10)
         return panel
@@ -475,6 +542,21 @@ class LCASMainGUI(ctk.CTk):
         self.core_app.config.source_directory = self.source_dir_entry.get()
         self.core_app.config.target_directory = self.target_dir_entry.get()
         self.core_app.config.gui_theme = self.theme_var.get()
+
+        # Save new config values
+        self.core_app.config.debug_mode = self.debug_mode_var.get()
+        self.core_app.config.log_level = self.log_level_var.get()
+        self.core_app.config.min_probative_score = self.min_probative_score_var.get()
+        self.core_app.config.min_relevance_score = self.min_relevance_score_var.get()
+        self.core_app.config.similarity_threshold = self.similarity_threshold_var.get()
+        self.core_app.config.probative_weight = self.probative_weight_var.get()
+        self.core_app.config.relevance_weight = self.relevance_weight_var.get()
+        self.core_app.config.admissibility_weight = self.admissibility_weight_var.get()
+        self.core_app.config.enable_deduplication = self.enable_deduplication_var.get()
+        self.core_app.config.enable_advanced_nlp = self.enable_advanced_nlp_var.get()
+        self.core_app.config.generate_visualizations = self.generate_visualizations_var.get()
+        self.core_app.config.max_concurrent_files = self.max_concurrent_files_var.get()
+
         # AI settings are saved via AIIntegrationPanel's own save button
         # CaseTheory is saved when its dialog closes
 
@@ -491,6 +573,20 @@ class LCASMainGUI(ctk.CTk):
         self.target_dir_entry.insert(0, config.target_directory)
         self.theme_var.set(config.gui_theme)
         ctk.set_appearance_mode(config.gui_theme) # Apply theme
+
+        # Load new UI variables
+        if hasattr(self, "debug_mode_var"): self.debug_mode_var.set(config.debug_mode)
+        if hasattr(self, "log_level_var"): self.log_level_var.set(config.log_level)
+        if hasattr(self, "min_probative_score_var"): self.min_probative_score_var.set(config.min_probative_score)
+        if hasattr(self, "min_relevance_score_var"): self.min_relevance_score_var.set(config.min_relevance_score)
+        if hasattr(self, "similarity_threshold_var"): self.similarity_threshold_var.set(config.similarity_threshold)
+        if hasattr(self, "probative_weight_var"): self.probative_weight_var.set(config.probative_weight)
+        if hasattr(self, "relevance_weight_var"): self.relevance_weight_var.set(config.relevance_weight)
+        if hasattr(self, "admissibility_weight_var"): self.admissibility_weight_var.set(config.admissibility_weight)
+        if hasattr(self, "enable_deduplication_var"): self.enable_deduplication_var.set(config.enable_deduplication)
+        if hasattr(self, "enable_advanced_nlp_var"): self.enable_advanced_nlp_var.set(config.enable_advanced_nlp)
+        if hasattr(self, "generate_visualizations_var"): self.generate_visualizations_var.set(config.generate_visualizations)
+        if hasattr(self, "max_concurrent_files_var"): self.max_concurrent_files_var.set(config.max_concurrent_files)
 
         # AI panel should load its own config based on core_app.config.ai_config_path
         if hasattr(self, 'ai_settings_panel'):
