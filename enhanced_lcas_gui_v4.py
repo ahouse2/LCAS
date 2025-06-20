@@ -2,39 +2,8 @@ self.update_status("Processing stopped by user")
 
 
 def _run_preservation(self):
-        feat / ai - integration - fix
-    """Run file preservation in background thread"""
-    try: # Ensuring this line is exactly 4 spaces followed by try:
-
-        feat/ai-integration-fix
-    """Run file preservation in background thread"""
-    try: # Ensuring this line is exactly 4 spaces followed by try:
-
-        feat/ai-integration-fix
-    """Run file preservation in background thread"""
-    try: # Ensuring this line is exactly 4 spaces followed by try:
-
-        feat/ai-integration-fix
-    """Run file preservation in background thread"""
-    try: # Ensuring this line is exactly 4 spaces followed by try:
-
-        feat/ai-integration-fix
-    """Run file preservation in background thread"""
-    try: # Ensuring this line is exactly 4 spaces followed by try:
-
-        feat/ai-integration-fix
-    """Run file preservation in background thread"""
-    try: # Ensuring this line is exactly 4 spaces followed by try:
-
-      feat/ai-integration-fix
     """Run file preservation in background thread"""
     try:
-        main
-        main
-        main
-        main
-        main
-        main
         source_path = Path(self.source_var.get())
         target_path = Path(self.target_var.get())
 
@@ -55,42 +24,6 @@ def _run_preservation(self):
         for i, file_path in enumerate(files):
             if not self.is_processing:
                 break
-        feat/ai-integration-fix
-
-        feat/ai-integration-fix
-
-        feat/ai-integration-fix
-
-        feat/ai-integration-fix
-
-        feat/ai-integration-fix
-
-        feat/ai-integration-fix
-
-
-        """Run file preservation in background thread"""
-        try:
-            source_path = Path(self.source_var.get())
-            target_path = Path(self.target_var.get())
-            
-            self.root.after(0, self.log_status, "🚀 Starting file preservation...")
-            
-            # Create target structure
-            self.root.after(0, self.log_status, "📁 Creating folder structure...")
-            self.create_folder_structure(target_path)
-            
-            # Discover files
-            files = list(source_path.rglob("*"))
-            files = [f for f in files if f.is_file()]
-            
-            self.root.after(0, self.log_status, f"📋 Found {len(files)} files to preserve...")
-      main
-        main
-        main
-        main
-        main
-        main
-        main
             
             try:
                 # Calculate relative path
@@ -128,27 +61,27 @@ def _run_preservation(self):
         self.root.after(0, self.preservation_error, str(e))
     
 def _run_analysis(self):
-        """Run complete analysis in background thread"""
-        try:
-            if LCAS_MAIN_AVAILABLE and self.config:
-                self.root.after(0, self.log_analysis_status, "🚀 Starting complete LCAS v4.0 analysis...")
-                
-                # Update config with current GUI values
-                self.config.source_directory = self.source_var.get()
-                self.config.target_directory = self.target_var.get()
-                
-                # Create LCAS core and run analysis
-                lcas = LCASCore(self.config)
-                
-                # Run complete analysis
-                result = lcas.run_complete_analysis()
-                
-                self.root.after(0, self.analysis_complete, result)
-            else:
-                raise Exception("LCAS main system not available")
-                
-        except Exception as e:
-            self.root.after(0, self.analysis_error, str(e))
+    """Run complete analysis in background thread"""
+    try:
+        if LCAS_MAIN_AVAILABLE and self.config:
+            self.root.after(0, self.log_analysis_status, "🚀 Starting complete LCAS v4.0 analysis...")
+
+            # Update config with current GUI values
+            self.config.source_directory = self.source_var.get()
+            self.config.target_directory = self.target_var.get()
+
+            # Create LCAS core and run analysis
+            lcas = LCASCore(self.config)
+
+            # Run complete analysis
+            result = lcas.run_complete_analysis()
+
+            self.root.after(0, self.analysis_complete, result)
+        else:
+            raise Exception("LCAS main system not available")
+
+    except Exception as e:
+        self.root.after(0, self.analysis_error, str(e))
     
     def _run_quick_analysis(self):
         """Run quick analysis simulation"""

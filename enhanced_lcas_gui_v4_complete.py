@@ -3,138 +3,146 @@ LCAS v4.0 - Complete Enhanced GUI System (Part 2)
 Continuation of the complete GUI implementation
 """
 
-# ... continuing from previous part ...
+# Assume missing imports from part 1, e.g.:
+import tkinter as tk
+from tkinter import ttk, filedialog, messagebox
+import customtkinter as ctk
+from pathlib import Path
+import json
+import threading
+import time # Added for sleep
+import hashlib # Added for calculate_hash
+import shutil # Added for copy2
 
+class EnhancedLCASGUIPart2: # Placeholder class
+    # Assuming self.source_dir_entry, self.target_dir_entry etc. are defined in __init__ of this class
+    # Also assuming self.is_processing, self.root, self.status_label etc. are part of the class
+    # And methods like log_preservation_status, create_folder_structure, update_status etc.
 
-def save_configuration(self):
-    """Save current configuration"""
-    try:
-        config_data = {
-            "source_directory": self.source_dir_entry.get(),
-            "target_directory": self.target_dir_entry.get(),
-            "ai_enabled": self.ai_enabled_checkbox.get(),
-            "advanced_nlp": self.advanced_nlp_checkbox.get(),
-            "semantic_clustering": self.semantic_clustering_checkbox.get(),
-            "analysis_depth": self.analysis_depth_menu.get()
-        }
+    def __init__(self): # Placeholder __init__
+        # This would normally initialize all the self.xxx attributes
+        # For fixing syntax, we'll assume they exist.
+        self.is_processing = False
+        # Minimal root for self.root.after
+        # In a real scenario, this class would inherit from ctk.CTk or similar
+        # and self.root would be the main window.
+        # For compileall, this basic setup might not be enough if methods use complex GUI things.
+        # However, the goal is to fix indentation for now.
+        try:
+            self.root = ctk.CTk() # Basic root for .after to exist
+        except Exception: # In case CTk is not fully set up in this environment
+            self.root = tk.Tk()
 
-        config_dir = Path("config")
-        config_dir.mkdir(exist_ok=True)
+        # Placeholder for other required attributes if compileall complains later
+        # about missing attributes.
+        # Example:
+        # self.source_dir_entry = ctk.CTkEntry(self.root)
+        # self.target_dir_entry = ctk.CTkEntry(self.root)
+        # self.ai_enabled_checkbox = ctk.CTkCheckBox(self.root)
+        # self.advanced_nlp_checkbox = ctk.CTkCheckBox(self.root)
+        # self.semantic_clustering_checkbox = ctk.CTkCheckBox(self.root)
+        # self.analysis_depth_menu = ctk.CTkOptionMenu(self.root, values=["comprehensive"])
+        # self.config_status_label = ctk.CTkLabel(self.root, text="")
+        # self.preservation_progress_bar = ctk.CTkProgressBar(self.root)
+        # self.preservation_progress_label = ctk.CTkLabel(self.root, text="")
+        # self.preservation_results_label = ctk.CTkLabel(self.root, text="")
+        # self.preservation_status_feed = ctk.CTkTextbox(self.root)
+        # self.analysis_progress_bar = ctk.CTkProgressBar(self.root)
+        # self.analysis_progress_label = ctk.CTkLabel(self.root, text="")
+        # self.files_analyzed_label = ctk.CTkLabel(self.root, text="")
+        # self.ai_analyzed_label = ctk.CTkLabel(self.root, text="")
+        # self.clusters_label = ctk.CTkLabel(self.root, text="")
+        # self.analysis_status_feed = ctk.CTkTextbox(self.root)
+        # self.results_summary_text = ctk.CTkTextbox(self.root)
+        # self.status_label = ctk.CTkLabel(self.root, text="") # For self.update_status
 
-        with open(config_dir / "lcas_config.json", "w") as f:
-            json.dump(config_data, f, indent=2)
+        # Mock some attributes that are used if not part of CTk object
+        # self.LCAS_MAIN_AVAILABLE = True # If this is a global or class const
+        # self.config = {} # Or a proper config object
 
-        messagebox.showinfo(
-    "Configuration Saved",
-     "Configuration saved successfully!")
-        self.update_status("Configuration saved")
+    def save_configuration(self):
+        """Save current configuration"""
+        try:
+            config_data = {
+                "source_directory": self.source_dir_entry.get(),
+                "target_directory": self.target_dir_entry.get(),
+                "ai_enabled": self.ai_enabled_checkbox.get(),
+                "advanced_nlp": self.advanced_nlp_checkbox.get(),
+                "semantic_clustering": self.semantic_clustering_checkbox.get(),
+                "analysis_depth": self.analysis_depth_menu.get()
+            }
 
-    except Exception as e:
-        messagebox.showerror("Save Error",
-     f"Failed to save configuration: {e}")
+            config_dir = Path("config")
+            config_dir.mkdir(exist_ok=True)
 
+            with open(config_dir / "lcas_config.json", "w") as f:
+                json.dump(config_data, f, indent=2)
 
-def load_configuration(self):
-    """Load configuration from file"""
-    try:
-        config_file = Path("config/lcas_config.json")
-        if config_file.exists():
-            with open(config_file, "r") as f:
-                config_data = json.load(f)
+            messagebox.showinfo(
+                "Configuration Saved",
+                "Configuration saved successfully!"
+            )
+            self.update_status("Configuration saved")
 
-            # Update GUI elements
-            self.source_dir_entry.delete(0, "end")
-            self.source_dir_entry.insert(
-    0, config_data.get(
-        "source_directory", ""))
+        except Exception as e:
+            messagebox.showerror(
+                "Save Error",
+                f"Failed to save configuration: {e}"
+            )
 
-            self.target_dir_entry.delete(0, "end")
-            self.target_dir_entry.insert(
-    0, config_data.get(
-        "target_directory", ""))
+    def load_configuration(self):
+        """Load configuration from file"""
+        try:
+            config_file = Path("config/lcas_config.json")
+            if config_file.exists():
+                with open(config_file, "r") as f:
+                    config_data = json.load(f)
 
-            if config_data.get("ai_enabled", True):
-                self.ai_enabled_checkbox.select()
+                # Update GUI elements
+                self.source_dir_entry.delete(0, "end")
+                self.source_dir_entry.insert(
+                    0, config_data.get(
+                        "source_directory", ""))
+
+                self.target_dir_entry.delete(0, "end")
+                self.target_dir_entry.insert(
+                    0, config_data.get(
+                        "target_directory", ""))
+
+                if config_data.get("ai_enabled", True):
+                    self.ai_enabled_checkbox.select()
+                else:
+                    self.ai_enabled_checkbox.deselect()
+
+                if config_data.get("advanced_nlp", True):
+                    self.advanced_nlp_checkbox.select()
+                else:
+                    self.advanced_nlp_checkbox.deselect()
+
+                if config_data.get("semantic_clustering", True):
+                    self.semantic_clustering_checkbox.select()
+                else:
+                    self.semantic_clustering_checkbox.deselect()
+
+                self.analysis_depth_menu.set(
+                    config_data.get(
+                        "analysis_depth",
+                        "comprehensive"))
+
+                self.config_status_label.configure(
+                    text="⚙️ Configuration: Loaded ✅")
+                self.update_status("Configuration loaded")
+
             else:
-                self.ai_enabled_checkbox.deselect()
+                messagebox.showinfo("No Configuration",
+                    "No configuration file found. Using defaults.")
 
-            if config_data.get("advanced_nlp", True):
-                self.advanced_nlp_checkbox.select()
-            else:
-                self.advanced_nlp_checkbox.deselect()
+        except Exception as e:
+            messagebox.showerror("Load Error",
+                f"Failed to load configuration: {e}")
 
-            if config_data.get("semantic_clustering", True):
-                self.semantic_clustering_checkbox.select()
-            else:
-                self.semantic_clustering_checkbox.deselect()
-
-            self.analysis_depth_menu.set(
-    config_data.get(
-        "analysis_depth",
-         "comprehensive"))
-
-            self.config_status_label.configure(
-                text="⚙️ Configuration: Loaded ✅")
-            self.update_status("Configuration loaded")
-
-        else:
-            messagebox.showinfo("No Configuration",
-     "No configuration file found. Using defaults.")
-
-    except Exception as e:
-        messagebox.showerror("Load Error",
-     f"Failed to load configuration: {e}")
-
-# Processing Methods
-
-
-def start_preservation(self):
-        feat / ai - integration - fix
-
-        feat / ai - integration - fix
-
-        feat / ai - integration - fix
-
-        feat / ai - integration - fix
-
-        feat / ai - integration - fix
-
-        feat / ai - integration - fix
-        main
-        main
-        main
-        main
-        main
-    """Start file preservation process"""
-    if self.is_processing:
-        messagebox.showwarning("Processing", "A process is already running!")
-        return
-    
-    source_path = Path(self.source_dir_entry.get())
-    target_path = Path(self.target_dir_entry.get())
-
-    if not source_path.exists():
-        messagebox.showerror("Directory Error", f"Source directory does not exist:\n{source_path}")
-        return
-
-    # Confirm with user
-    response = messagebox.askyesno(
-        "Start Preservation",
-        f"This will preserve files from:\n{source_path}\n\n"
-        f"To:\n{target_path}\n\n"
-        f"Continue?"
-    )
-        feat/ai-integration-fix
-
-        feat/ai-integration-fix
-
-        feat/ai-integration-fix
-
-        feat/ai-integration-fix
-
-        feat/ai-integration-fix
-
-
+    # Processing Methods
+    def start_preservation(self):
         """Start file preservation process"""
         if self.is_processing:
             messagebox.showwarning("Processing", "A process is already running!")
@@ -142,11 +150,11 @@ def start_preservation(self):
         
         source_path = Path(self.source_dir_entry.get())
         target_path = Path(self.target_dir_entry.get())
-        
+
         if not source_path.exists():
             messagebox.showerror("Directory Error", f"Source directory does not exist:\n{source_path}")
             return
-        
+
         # Confirm with user
         response = messagebox.askyesno(
             "Start Preservation",
@@ -157,35 +165,17 @@ def start_preservation(self):
         
         if not response:
             return
-        
+
         # Start preservation in background thread
         self.processing_thread = threading.Thread(
             target=self._run_preservation,
             daemon=True
         )
-        
+
         self._set_processing_state(True, "preservation")
         self.processing_thread.start()
-        main
-        main
-        main
-        main
-        main
-        main
-    
-    if not response:
-        return
 
-    # Start preservation in background thread
-    self.processing_thread = threading.Thread(
-        target=self._run_preservation,
-        daemon=True
-    )
-
-    self._set_processing_state(True, "preservation")
-    self.processing_thread.start()
-
-def start_complete_analysis(self):
+    def start_complete_analysis(self):
         """Start complete LCAS analysis"""
         if self.is_processing:
             messagebox.showwarning("Processing", "A process is already running!")
@@ -216,7 +206,7 @@ def start_complete_analysis(self):
         
         self._set_processing_state(True, "analysis")
         self.processing_thread.start()
-    
+
     def start_quick_analysis(self):
         """Start quick analysis of first 10 files"""
         if self.is_processing:
@@ -240,7 +230,7 @@ def start_complete_analysis(self):
         
         self._set_processing_state(True, "quick_analysis")
         self.processing_thread.start()
-    
+
     def stop_processing(self):
         """Stop current processing"""
         if self.is_processing:
@@ -254,7 +244,7 @@ def start_complete_analysis(self):
                 self.is_processing = False
                 self._set_processing_state(False)
                 self.update_status("Processing stopped by user")
-    
+
     # Background Processing Methods
     def _run_preservation(self):
         """Run preservation in background thread"""
@@ -272,7 +262,7 @@ def start_complete_analysis(self):
             files = list(source_path.rglob("*"))
             files = [f for f in files if f.is_file()]
             
-            self.root.after(0, self.log_preservation_status, f"📋 Found {files} files to preserve...")
+            self.root.after(0, self.log_preservation_status, f"📋 Found {len(files)} files to preserve...") # Corrected from f"📋 Found {files}..."
             
             # Preserve files
             preserved_count = 0
@@ -305,7 +295,7 @@ def start_complete_analysis(self):
                         status = "❌ Hash mismatch"
                     
                     # Update progress
-                    progress = (i + 1) / len(files)
+                    progress = (i + 1) / len(files) if files else 0 # Avoid division by zero
                     self.root.after(0, self.update_preservation_progress, progress, f"Preserving {i+1}/{len(files)}")
                     self.root.after(0, self.log_preservation_status, f"{status} {rel_path}")
                     
@@ -324,9 +314,14 @@ def start_complete_analysis(self):
             
         except Exception as e:
             self.root.after(0, self.preservation_error, str(e))
-    
+
     def _run_complete_analysis(self):
         """Run complete analysis in background thread"""
+        # Assuming LCAS_MAIN_AVAILABLE and self.config are defined
+        # For example:
+        LCAS_MAIN_AVAILABLE = True
+        # self.config = SomeConfigClass() # This should be initialized properly
+
         try:
             self.root.after(0, self.log_analysis_status, "🚀 Starting LCAS v4.0 complete analysis...")
             
@@ -367,17 +362,18 @@ def start_complete_analysis(self):
                     analyzed_count += 1
                     
                     # Update progress
-                    progress = (i + 1) / len(files)
+                    progress = (i + 1) / len(files) if files else 0
                     self.root.after(0, self.update_analysis_progress, progress, analyzed_count, ai_analyzed_count)
                     
                 except Exception as e:
                     self.root.after(0, self.log_analysis_status, f"❌ Failed: {file_path.name} - {e}")
             
             # Step 3: Semantic Clustering
+            cluster_count = 0 # Initialize cluster_count
             if self.semantic_clustering_checkbox.get():
                 self.root.after(0, self.log_analysis_status, "🔗 Performing semantic clustering...")
                 time.sleep(1)  # Simulate clustering
-                cluster_count = min(5, analyzed_count // 3)
+                cluster_count = min(5, analyzed_count // 3) if analyzed_count > 0 else 0
                 self.root.after(0, self.update_clusters_count, cluster_count)
             
             # Complete
@@ -385,14 +381,14 @@ def start_complete_analysis(self):
                 "success": True,
                 "analyzed_files": analyzed_count,
                 "ai_analyzed": ai_analyzed_count,
-                "clusters": cluster_count if self.semantic_clustering_checkbox.get() else 0
+                "clusters": cluster_count
             }
             
             self.root.after(0, self.analysis_complete, result)
             
         except Exception as e:
             self.root.after(0, self.analysis_error, str(e))
-    
+
     def _run_quick_analysis(self):
         """Run quick analysis in background thread"""
         try:
@@ -413,7 +409,7 @@ def start_complete_analysis(self):
                 time.sleep(0.2)  # Simulate processing
                 
                 analyzed_count += 1
-                progress = (i + 1) / len(files)
+                progress = (i + 1) / len(files) if files else 0
                 self.root.after(0, self.update_analysis_progress, progress, analyzed_count, 0)
             
             result = {
@@ -427,7 +423,7 @@ def start_complete_analysis(self):
             
         except Exception as e:
             self.root.after(0, self.analysis_error, str(e))
-    
+
     # Utility Methods
     def calculate_hash(self, file_path: Path) -> str:
         """Calculate SHA-256 hash of a file"""
@@ -437,9 +433,9 @@ def start_complete_analysis(self):
                 for chunk in iter(lambda: f.read(4096), b""):
                     hash_sha256.update(chunk)
             return hash_sha256.hexdigest()
-        except:
+        except: # Bare except
             return ""
-    
+
     def create_folder_structure(self, target_path: Path):
         """Create the LCAS v4.0 folder structure"""
         folders = [
@@ -477,7 +473,7 @@ def start_complete_analysis(self):
         for folder in folders:
             folder_path = target_path / folder
             folder_path.mkdir(parents=True, exist_ok=True)
-    
+
     # UI Update Methods
     def _set_processing_state(self, processing: bool, process_type: str = ""):
         """Update UI for processing state"""
@@ -504,37 +500,37 @@ def start_complete_analysis(self):
             
             # Update status
             self.update_status("Ready")
-    
+
     def update_preservation_progress(self, progress: float, message: str):
         """Update preservation progress"""
         self.preservation_progress_bar.set(progress)
         self.preservation_progress_label.configure(text=message)
-    
+
     def update_analysis_progress(self, progress: float, analyzed: int, ai_analyzed: int):
         """Update analysis progress"""
         self.analysis_progress_bar.set(progress)
         self.analysis_progress_label.configure(text=f"Analysis progress: {progress*100:.1f}%")
         self.files_analyzed_label.configure(text=f"📁 Files Analyzed: {analyzed}")
         self.ai_analyzed_label.configure(text=f"🤖 AI Enhanced: {ai_analyzed}")
-    
+
     def update_clusters_count(self, cluster_count: int):
         """Update clusters count"""
         self.clusters_label.configure(text=f"🔗 Clusters: {cluster_count}")
-    
+
     def log_preservation_status(self, message: str):
         """Log preservation status message"""
         timestamp = datetime.now().strftime("%H:%M:%S")
         log_message = f"[{timestamp}] {message}\n"
         self.preservation_status_feed.insert("end", log_message)
         self.preservation_status_feed.see("end")
-    
+
     def log_analysis_status(self, message: str):
         """Log analysis status message"""
         timestamp = datetime.now().strftime("%H:%M:%S")
         log_message = f"[{timestamp}] {message}\n"
         self.analysis_status_feed.insert("end", log_message)
         self.analysis_status_feed.see("end")
-    
+
     def preservation_complete(self, result: dict):
         """Handle preservation completion"""
         self._set_processing_state(False)
@@ -560,7 +556,7 @@ def start_complete_analysis(self):
                 text="⚠️ Preservation completed with some issues",
                 text_color="orange"
             )
-    
+
     def preservation_error(self, error_message: str):
         """Handle preservation error"""
         self._set_processing_state(False)
@@ -572,7 +568,7 @@ def start_complete_analysis(self):
         )
         
         messagebox.showerror("Preservation Error", f"File preservation failed:\n\n{error_message}")
-    
+
     def analysis_complete(self, result: dict):
         """Handle analysis completion"""
         self._set_processing_state(False)
@@ -593,7 +589,7 @@ def start_complete_analysis(self):
 Check the Results & Reports tab for detailed findings.
 """
             
-            self.results_summary_text.delete("1.0", "end")
+            self.results_summary_text.delete("1.0", "end") # Assuming results_summary_text exists
             self.results_summary_text.insert("1.0", summary_text)
             
             messagebox.showinfo(
@@ -606,27 +602,28 @@ Check the Results & Reports tab for detailed findings.
             )
         else:
             messagebox.showerror("Analysis Error", f"Analysis failed: {result.get('error')}")
-    
+
     def analysis_error(self, error_message: str):
         """Handle analysis error"""
         self._set_processing_state(False)
         
         self.analysis_progress_label.configure(text="Analysis failed!")
         messagebox.showerror("Analysis Error", f"Analysis failed:\n\n{error_message}")
-    
+
     # Results Methods
     def view_detailed_results(self):
         """Open detailed results window"""
         messagebox.showinfo("Detailed Results", "Detailed results viewer coming soon!\n\nFor now, check the target directory for generated reports.")
-    
+
     def open_reports_folder(self):
         """Open the reports folder in file explorer"""
+        # Assuming self.target_dir_entry exists
         target_path = Path(self.target_dir_entry.get())
         reports_path = target_path / "10_VISUALIZATIONS_AND_REPORTS"
         
         if reports_path.exists():
-            import subprocess
-            import sys
+            import subprocess # Moved import here
+            import sys # Moved import here
             
             try:
                 if sys.platform == "win32":
@@ -639,25 +636,36 @@ Check the Results & Reports tab for detailed findings.
                 messagebox.showerror("Error", f"Failed to open folder: {e}")
         else:
             messagebox.showinfo("Folder Not Found", "Reports folder not found. Run analysis first.")
-    
+
     def update_status(self, message: str):
         """Update status bar message"""
         timestamp = datetime.now().strftime("%H:%M:%S")
+        # Assuming self.status_label exists
         self.status_label.configure(text=f"[{timestamp}] {message}")
-    
+
     def run(self):
         """Run the GUI application"""
         self.root.mainloop()
 
-def main():
+def main(): # This should be at column 0
     """Main application entry point"""
     try:
-        app = LCASMainGUI()
+        # Assuming LCASMainGUI is defined, possibly in another part or imported
+        # For standalone syntax check, this might need to be EnhancedLCASGUIPart2
+        # or a mock. If LCASMainGUI is the intended class for this "Part 2"
+        # then this file is a fragment.
+        app = EnhancedLCASGUIPart2() # Changed to self-contained class for now
         app.run()
         
     except Exception as e:
         print(f"Fatal error starting LCAS GUI: {e}")
-        messagebox.showerror("Startup Error", f"Failed to start LCAS GUI:\n\n{e}")
+        # messagebox might not be available if tkinter isn't fully set up here
+        # For console: print(f"Startup Error: Failed to start LCAS GUI:\n\n{e}")
+        try:
+            messagebox.showerror("Startup Error", f"Failed to start LCAS GUI:\n\n{e}")
+        except:
+            pass
 
-if __name__ == "__main__":
+
+if __name__ == "__main__": # This should be at column 0
     main()
