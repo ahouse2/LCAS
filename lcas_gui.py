@@ -959,10 +959,7 @@ class LCASMainWindow(ctk.CTk):
                 f"Scanned {file_count} files in source directory")
 
         except Exception as e:
-            messagebox.showerror(
-                "Error",
-                f"Error scanning directory: {
-                    str(e)}")
+            messagebox.showerror(f"Error scanning directory: {str(e)}")
 
     def save_settings(self):
         """Save current settings"""

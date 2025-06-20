@@ -314,9 +314,7 @@ class EnhancedAIRateLimiter:
         if self.degradation_mode and now < self.degraded_until:
             if self.config.pause_on_limit:
                 wait_time = self.degraded_until - now
-                logger.info(
-                    f"AI in degradation mode, waiting {
-                        wait_time:.1f} seconds")
+                logger.info(f"AI in degradation mode, waiting {wait_time:.1f} seconds")
                 await asyncio.sleep(wait_time)
                 self.degradation_mode = False
             else:

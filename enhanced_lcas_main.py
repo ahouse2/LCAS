@@ -290,9 +290,7 @@ class AIRateLimiter:
         if self.config.pause_on_limit:
             self.is_paused = True
             self.pause_until = time.time() + self.current_backoff
-            logger.info(
-                f"AI paused for {
-                    self.current_backoff} seconds due to {limit_type} limit")
+            logger.info(f"AI paused for {self.current_backoff} seconds due to {limit_type} limit")
 
             # Exponential backoff
             self.current_backoff = min(

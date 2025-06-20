@@ -72,10 +72,7 @@ async def run_cli(args):
     # Initialize and run
     if await core.initialize():
         print("LCAS Core Application started successfully")
-        print(
-            f"Loaded plugins: {
-                list(
-                    core.plugin_manager.loaded_plugins.keys())}")
+        print(f"Loaded plugins: {list(core.plugin_manager.loaded_plugins.keys())}")
 
         # Run analysis if directories are configured
         if core.config.source_directory and core.config.target_directory:
