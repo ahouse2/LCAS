@@ -377,7 +377,8 @@ class EnhancedAIRateLimiter:
         """Clean up old usage records"""
         # Keep last hour for tokens/cost
         self.token_history = [t for t in self.token_history if now - t['timestamp'] < 3600]
-        self.cost_history = [c for c in self.cost_history if now - c['timestamp'] < 3600]def _clean_old_records(self, now: float):
+        self.cost_history = [c for c in self.cost_history if now - c['timestamp'] < 3600]
+    def _clean_old_records(self, now: float):
         
         # Keep last minute for requests
         self.request_history = [r for r in self.request_history if now - r < 60]
@@ -836,6 +837,117 @@ class EnhancedLocalModelProvider(ConfigurableAIProvider):
         
         return base_tokens.get(analysis_type, 1000)
 
+class GoogleAIProvider(ConfigurableAIProvider):
+    """Google AI provider using OpenAI-compatible interface"""
+
+    def __init__(self, config, user_settings: AIConfigSettings):
+        super().__init__(config, user_settings)
+        # Ensure openai library is available, as we're using its interface
+        if OPENAI_AVAILABLE and config.api_key:
+            self.client = openai.AsyncOpenAI(
+                api_key=config.api_key, # This will be the Google AI API Key
+                base_url=config.base_url, # Should be "https://generativelanguage.googleapis.com/v1beta/models"
+                timeout=config.timeout
+            )
+        else:
+            self.client = None
+
+    def is_available(self) -> bool:
+        return OPENAI_AVAILABLE and self.config.api_key and self.config.enabled and self.client is not None and "generativelanguage.googleapis.com" in self.config.base_url
+
+    async def analyze_content(self, content: str, analysis_type: str,
+                            context: Dict[str, Any] = None) -> Dict[str, Any]:
+        if not self.is_available():
+            raise ValueError("Google AI provider not available or not configured correctly (check base_url).")
+
+        try:
+            if len(content) > self.user_settings.max_content_length:
+                content = content[:self.user_settings.max_content_length] + "\n[Content truncated due to length limits]"
+
+            system_prompt = self.get_analysis_prompt(analysis_type, context)
+            messages = [{"role": "system", "content": system_prompt}]
+
+            if context:
+                context_msg = f"Additional Context: {json.dumps(context, indent=2)}\n\n"
+                content = context_msg + content
+            messages.append({"role": "user", "content": content})
+
+            model = self._select_model() # This will just use config.model
+            temperature = self._get_temperature()
+            max_tokens = self._get_max_tokens(analysis_type)
+
+            response = await self._make_api_call_with_retry(
+                messages=messages,
+                model=model, # User will set this to a Gemini model name
+                temperature=temperature,
+                max_tokens=max_tokens
+                # Ensure no OpenAI specific params like 'response_format' are passed if not supported
+            )
+
+            tokens_used = response.usage.total_tokens if response.usage else 0 # This might need adjustment if Google's response differs
+            self.total_tokens_used += tokens_used
+            cost = tokens_used * self.config.cost_per_token # Placeholder cost
+            self.total_cost += cost
+            self.success_count += 1
+
+            return {
+                "response": response.choices[0].message.content,
+                "tokens_used": tokens_used,
+                "cost": cost,
+                "model": model,
+                "provider": "google",
+                "analysis_type": analysis_type,
+                "success": True
+            }
+        except Exception as e:
+            self.error_count += 1
+            logger.error(f"Google AI API error: {e}", exc_info=True)
+            # Check for specific Google API errors if possible
+            if "API key not valid" in str(e): # This is a guess, error messages might differ
+                logger.error("Google AI API key may be invalid or missing.")
+            raise
+
+    def _select_model(self) -> str:
+        # For Google AI, model is directly specified in config.model by user
+        # e.g., "gemini-1.5-pro-latest" or "models/gemini-1.5-pro-latest"
+        if not self.config.model:
+            logger.warning("Google AI model not specified in config, defaulting to 'gemini-pro'")
+            return "gemini-pro"
+        return self.config.model
+
+    def _get_temperature(self) -> float:
+        return self.config.temperature
+
+    def _get_max_tokens(self, analysis_type: str) -> int:
+        base_tokens = {"document_intelligence": 2000, "legal_analysis": 3000, "pattern_discovery": 2500}
+        base = base_tokens.get(analysis_type, 2000)
+        if self.user_settings.analysis_depth == "comprehensive": return int(base * 1.5)
+        elif self.user_settings.analysis_depth == "basic": return int(base * 0.7)
+        return base
+
+    async def _make_api_call_with_retry(self, **kwargs) -> Any:
+        # This uses the openai.RateLimitError, which might not be directly applicable
+        # if Google's rate limits behave differently via the OpenAI library shim.
+        # This might need refinement based on actual Google API error responses.
+        for attempt in range(self.config.max_retries):
+            try:
+                response = await self.client.chat.completions.create(**kwargs)
+                return response
+            except openai.RateLimitError as e: # Check if Google errors map to this
+                if attempt < self.config.max_retries - 1:
+                    wait_time = (2 ** attempt) * 1.0
+                    logger.warning(f"Google AI rate limit hit (or error mapped to it), waiting {wait_time}s before retry {attempt + 1}")
+                    await asyncio.sleep(wait_time)
+                else:
+                    raise
+            except Exception as e:
+                if attempt < self.config.max_retries - 1:
+                    wait_time = (2 ** attempt) * 0.5
+                    logger.warning(f"Google AI API error '{e}', retrying in {wait_time}s")
+                    await asyncio.sleep(wait_time)
+                else:
+                    raise
+
 class EnhancedAIFoundationPlugin:
     """Production-ready AI Foundation Plugin with comprehensive configurability"""
     
@@ -911,6 +1023,18 @@ class EnhancedAIFoundationPlugin:
                     "max_retries": 2,
                     "enabled": False,  # Disabled by default
                     "cost_per_token": 0.0  # No cost for local
+                },
+                "google": {
+                    "provider_name": "google",
+                    "api_key": "",  # User must add their Google AI API Key
+                    "model": "gemini-1.5-pro-latest", # Default model, user can change
+                    "base_url": "https://generativelanguage.googleapis.com/v1beta/models", # OpenAI-compatible endpoint for Gemini
+                    "temperature": 0.1,
+                    "max_tokens": 4000, # Default, should be adjusted based on model
+                    "timeout": 60,
+                    "max_retries": 3,
+                    "enabled": False, # Default to disabled
+                    "cost_per_token": 0.000002  # Placeholder: e.g., Gemini 1.5 Pro input pricing, user should verify/update
                 }
             },
             "user_settings": {
@@ -1019,6 +1143,8 @@ class EnhancedAIFoundationPlugin:
                     self.providers[provider_name] = EnhancedAnthropicProvider(config_obj, self.user_settings)
                 elif provider_name == "local":
                     self.providers[provider_name] = EnhancedLocalModelProvider(config_obj, self.user_settings)
+                elif provider_name == "google":
+                    self.providers[provider_name] = GoogleAIProvider(config_obj, self.user_settings)
                     
                 logger.info(f"Provider {provider_name}: {'✓' if self.providers[provider_name].is_available() else '✗'}")
             except Exception as e:
@@ -1487,7 +1613,7 @@ System Health: {status['system_health'].upper()}
         logger.info(f"Configuration imported from {file_path}")
 
 # Factory function for LCAS integration
-    def create_enhanced_ai_plugin(lcas_config) -> EnhancedAIFoundationPlugin:
+def create_enhanced_ai_plugin(lcas_config) -> "EnhancedAIFoundationPlugin":
     """Factory function to create enhanced AI plugin for LCAS"""
     
     # Extract AI configuration from LCAS config if available

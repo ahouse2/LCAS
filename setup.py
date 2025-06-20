@@ -60,6 +60,11 @@ setup(
             "customtkinter>=5.2.0",
             "pillow>=10.0.0",
             "tkinter-tooltip>=2.0.0",
+        ],
+        "ai": [
+            "openai>=1.0.0",
+            "anthropic>=0.21.0",
+            "httpx>=0.25.0",
         ]
     },
     entry_points={
