@@ -17,6 +17,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class Pattern:
     """Represents a discovered pattern"""
@@ -33,6 +34,7 @@ class Pattern:
     recommended_actions: List[str]
     related_patterns: List[str]
 
+
 @dataclass
 class LegalTheory:
     """Represents a potential legal theory or argument"""
@@ -48,21 +50,22 @@ class LegalTheory:
     strategic_value: str
     implementation_steps: List[str]
 
+
 class PatternDiscoveryPlugin:
     """Plugin for discovering hidden patterns and legal theories"""
-    
+
     def __init__(self, config, ai_service=None):
         self.config = config
         self.ai_service = ai_service
         self.discovered_patterns = []
         self.potential_theories = []
-        
+
         # Initialize pattern detection frameworks
         self.abuse_patterns = self._initialize_abuse_patterns()
         self.financial_patterns = self._initialize_financial_patterns()
         self.control_patterns = self._initialize_control_patterns()
         self.legal_patterns = self._initialize_legal_patterns()
-    
+
     def _initialize_abuse_patterns(self) -> Dict[str, Any]:
         """Initialize abuse pattern detection framework"""
         return {
