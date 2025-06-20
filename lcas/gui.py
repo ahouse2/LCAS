@@ -208,6 +208,7 @@ class LCASMainGUI:
 
         ttk.Checkbutton(log_debug_frame, text="Debug Mode",
                         variable=self.debug_mode_var).grid(row=1, column=0, columnspan=2, sticky=tk.W, padx=10, pady=5)
+        feat/ai-integration-fix
 
         ttk.Label(log_debug_frame, text="Plugins Directory:").grid(row=2, column=0, sticky=tk.W, padx=10, pady=5)
         ttk.Entry(log_debug_frame, textvariable=self.plugins_dir_var, width=50).grid(row=2, column=1, padx=10, pady=5)
@@ -234,6 +235,34 @@ class LCASMainGUI:
         ttk.Label(analysis_params_frame, text="Admissibility Weight:").grid(row=2, column=2, sticky=tk.W, padx=10, pady=5)
         ttk.Entry(analysis_params_frame, textvariable=self.admissibility_weight_var, width=10).grid(row=2, column=3, padx=10, pady=5)
         
+
+        
+        ttk.Label(log_debug_frame, text="Plugins Directory:").grid(row=2, column=0, sticky=tk.W, padx=10, pady=5)
+        ttk.Entry(log_debug_frame, textvariable=self.plugins_dir_var, width=50).grid(row=2, column=1, padx=10, pady=5)
+
+        # Analysis Parameters Frame
+        analysis_params_frame = ttk.LabelFrame(scrollable_frame, text="Analysis Parameters")
+        analysis_params_frame.pack(fill=tk.X, padx=20, pady=10)
+
+        ttk.Label(analysis_params_frame, text="Min Probative Score:").grid(row=0, column=0, sticky=tk.W, padx=10, pady=5)
+        ttk.Entry(analysis_params_frame, textvariable=self.min_probative_score_var, width=10).grid(row=0, column=1, padx=10, pady=5)
+
+        ttk.Label(analysis_params_frame, text="Min Relevance Score:").grid(row=1, column=0, sticky=tk.W, padx=10, pady=5)
+        ttk.Entry(analysis_params_frame, textvariable=self.min_relevance_score_var, width=10).grid(row=1, column=1, padx=10, pady=5)
+
+        ttk.Label(analysis_params_frame, text="Similarity Threshold:").grid(row=2, column=0, sticky=tk.W, padx=10, pady=5)
+        ttk.Entry(analysis_params_frame, textvariable=self.similarity_threshold_var, width=10).grid(row=2, column=1, padx=10, pady=5)
+
+        ttk.Label(analysis_params_frame, text="Probative Weight:").grid(row=0, column=2, sticky=tk.W, padx=10, pady=5)
+        ttk.Entry(analysis_params_frame, textvariable=self.probative_weight_var, width=10).grid(row=0, column=3, padx=10, pady=5)
+
+        ttk.Label(analysis_params_frame, text="Relevance Weight:").grid(row=1, column=2, sticky=tk.W, padx=10, pady=5)
+        ttk.Entry(analysis_params_frame, textvariable=self.relevance_weight_var, width=10).grid(row=1, column=3, padx=10, pady=5)
+
+        ttk.Label(analysis_params_frame, text="Admissibility Weight:").grid(row=2, column=2, sticky=tk.W, padx=10, pady=5)
+        ttk.Entry(analysis_params_frame, textvariable=self.admissibility_weight_var, width=10).grid(row=2, column=3, padx=10, pady=5)
+
+        main
         # Processing Options Frame
         proc_options_frame = ttk.LabelFrame(scrollable_frame, text="Processing Options")
         proc_options_frame.pack(fill=tk.X, padx=20, pady=10)
@@ -629,11 +658,19 @@ class LCASMainGUI:
             self.core.config.min_probative_score = self.min_probative_score_var.get()
             self.core.config.min_relevance_score = self.min_relevance_score_var.get()
             self.core.config.similarity_threshold = self.similarity_threshold_var.get()
+        feat/ai-integration-fix
             
             self.core.config.probative_weight = self.probative_weight_var.get()
             self.core.config.relevance_weight = self.relevance_weight_var.get()
             self.core.config.admissibility_weight = self.admissibility_weight_var.get()
 
+
+
+            self.core.config.probative_weight = self.probative_weight_var.get()
+            self.core.config.relevance_weight = self.relevance_weight_var.get()
+            self.core.config.admissibility_weight = self.admissibility_weight_var.get()
+            
+        main
             self.core.config.enable_deduplication = self.enable_deduplication_var.get()
             self.core.config.enable_advanced_nlp = self.enable_advanced_nlp_var.get()
             self.core.config.generate_visualizations = self.generate_visualizations_var.get()
