@@ -1615,7 +1615,10 @@ System Health: {status['system_health'].upper()}
 # Factory function for LCAS integration
         feat/ai-integration-fix
 
+        feat/ai-integration-fix
+
       feat/ai-integration-fix
+        main
         main
 def create_enhanced_ai_plugin(lcas_config) -> "EnhancedAIFoundationPlugin":
     """Factory function to create enhanced AI plugin for LCAS"""

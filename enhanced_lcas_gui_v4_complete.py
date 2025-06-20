@@ -73,6 +73,9 @@ def load_configuration(self):
 # Processing Methods
 def start_preservation(self):
         feat/ai-integration-fix
+
+        feat/ai-integration-fix
+        main
     """Start file preservation process"""
     if self.is_processing:
         messagebox.showwarning("Processing", "A process is already running!")
@@ -92,6 +95,8 @@ def start_preservation(self):
         f"To:\n{target_path}\n\n"
         f"Continue?"
     )
+        feat/ai-integration-fix
+
 
         """Start file preservation process"""
         if self.is_processing:
@@ -124,6 +129,7 @@ def start_preservation(self):
         
         self._set_processing_state(True, "preservation")
         self.processing_thread.start()
+        main
         main
     
     if not response:
