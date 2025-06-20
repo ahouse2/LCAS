@@ -6,7 +6,7 @@ Contains all analysis plugins for the Legal Case Analysis System
 # Plugin registry for automatic discovery
 AVAILABLE_PLUGINS = [
     "file_ingestion_plugin",
-    "hash_generation_plugin", 
+    "hash_generation_plugin",
     "evidence_categorization_plugin",
     "ai_integration_plugin",
     "timeline_analysis_plugin",
@@ -23,7 +23,7 @@ PLUGIN_METADATA = {
         "enabled_by_default": True
     },
     "hash_generation_plugin": {
-        "name": "Hash Generation", 
+        "name": "Hash Generation",
         "category": "Security",
         "description": "Generates SHA256 hashes for file integrity verification",
         "enabled_by_default": True
@@ -42,14 +42,14 @@ PLUGIN_METADATA = {
     },
     "timeline_analysis_plugin": {
         "name": "Timeline Analysis",
-        "category": "Analysis", 
+        "category": "Analysis",
         "description": "Builds chronological timelines from evidence files",
         "enabled_by_default": True
     },
     "pattern_discovery_plugin": {
         "name": "Pattern Discovery",
         "category": "Analysis",
-        "description": "Discovers patterns and relationships in evidence files", 
+        "description": "Discovers patterns and relationships in evidence files",
         "enabled_by_default": True
     },
     "report_generation_plugin": {
@@ -60,9 +60,11 @@ PLUGIN_METADATA = {
     }
 }
 
+
 def get_available_plugins():
     """Get list of available plugins"""
     return AVAILABLE_PLUGINS
+
 
 def get_plugin_metadata(plugin_name=None):
     """Get metadata for plugins"""
@@ -70,12 +72,14 @@ def get_plugin_metadata(plugin_name=None):
         return PLUGIN_METADATA.get(plugin_name)
     return PLUGIN_METADATA
 
+
 def get_plugins_by_category(category):
     """Get plugins by category"""
     return [
         plugin_name for plugin_name, metadata in PLUGIN_METADATA.items()
         if metadata.get("category") == category
     ]
+
 
 def get_default_enabled_plugins():
     """Get plugins that are enabled by default"""

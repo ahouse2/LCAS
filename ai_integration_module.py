@@ -15,6 +15,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class AIConfig:
     """Configuration for AI services"""
@@ -28,6 +29,7 @@ class AIConfig:
     max_retries: int = 3
     enabled: bool = False
 
+
 @dataclass
 class AIResponse:
     """Response from AI service"""
@@ -37,36 +39,40 @@ class AIResponse:
     success: bool
     error: Optional[str] = None
 
+
 class BaseAIProvider(ABC):
     """Abstract base class for AI providers"""
-    
+
     def __init__(self, config: AIConfig):
         self.config = config
         self.client = None
         self._setup_client()
-    
+
     @abstractmethod
     def _setup_client(self):
         """Setup the HTTP client for the provider"""
         pass
-    
+
     @abstractmethod
-    async def _make_request(self, messages: List[Dict[str, str]], **kwargs) -> AIResponse:
+    async def _make_request(
+            self, messages: List[Dict[str, str]], **kwargs) -> AIResponse:
         """Make request to AI provider"""
         pass
-    
-    async def generate_completion(self, prompt: str, system_prompt: str = None, **kwargs) -> AIResponse:
+
+    async def generate_completion(
+            self, prompt: str, system_prompt: str = None, **kwargs) -> AIResponse:
         """Generate completion from prompt"""
         messages = []
-        
+
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
-        
+
         messages.append({"role": "user", "content": prompt})
-        
+
         return await self._make_request(messages, **kwargs)
-    
-    async def analyze_legal_content(self, content: str, analysis_type: str) -> AIResponse:
+
+    async def analyze_legal_content(
+            self, content: str, analysis_type: str) -> AIResponse:
         """Analyze legal content with specialized prompts"""
         prompts = {
             "summary": self._get_summary_prompt(),
@@ -75,15 +81,16 @@ class BaseAIProvider(ABC):
             "entity_extraction": self._get_entity_extraction_prompt(),
             "timeline": self._get_timeline_prompt()
         }
-        
+
         if analysis_type not in prompts:
-            return AIResponse("", {}, "", False, f"Unknown analysis type: {analysis_type}")
-        
+            return AIResponse("", {}, "", False,
+                              f"Unknown analysis type: {analysis_type}")
+
         system_prompt = prompts[analysis_type]["system"]
         user_prompt = prompts[analysis_type]["user"].format(content=content)
-        
+
         return await self.generate_completion(user_prompt, system_prompt)
-    
+
     def _get_summary_prompt(self) -> Dict[str, str]:
         """Get prompts for document summarization"""
         return {
@@ -102,7 +109,7 @@ Please provide:
 
 Format your response as JSON with these exact keys: document_type, key_facts, legal_relevance, potential_issues, summary"""
         }
-    
+
     def _get_categorization_prompt(self) -> Dict[str, str]:
         """Get prompts for document categorization"""
         return {
@@ -125,7 +132,7 @@ Available Categories:
 
 Respond with JSON: {{"category": "folder_name", "confidence": 0.0-1.0, "reasoning": "explanation", "alternative_categories": ["alt1", "alt2"]}}"""
         }
-    
+
     def _get_scoring_prompt(self) -> Dict[str, str]:
         """Get prompts for legal scoring"""
         return {
@@ -146,7 +153,7 @@ Consider: authentication requirements, hearsay rules, privilege, Rule 403 balanc
 
 Respond with JSON: {{"probative_value": 0.0, "prejudicial_value": 0.0, "relevance": 0.0, "admissibility": 0.0, "overall_impact": 0.0, "reasoning": "detailed explanation"}}"""
         }
-    
+
     def _get_entity_extraction_prompt(self) -> Dict[str, str]:
         """Get prompts for entity extraction"""
         return {
@@ -166,7 +173,7 @@ Extract:
 
 Respond with JSON: {{"people": [], "organizations": [], "dates": [], "financial": [], "legal": [], "communications": [], "other": []}}"""
         }
-    
+
     def _get_timeline_prompt(self) -> Dict[str, str]:
         """Get prompts for timeline extraction"""
         return {
@@ -185,9 +192,10 @@ For each event, provide:
 Respond with JSON: {{"events": [{{"date": "YYYY-MM-DD or estimate", "description": "what happened", "participants": ["who"], "significance": "why important"}}]}}"""
         }
 
+
 class OpenAIProvider(BaseAIProvider):
     """OpenAI API provider"""
-    
+
     def _setup_client(self):
         """Setup OpenAI client"""
         base_url = self.config.base_url or "https://api.openai.com/v1"
@@ -199,8 +207,9 @@ class OpenAIProvider(BaseAIProvider):
             },
             timeout=self.config.timeout
         )
-    
-    async def _make_request(self, messages: List[Dict[str, str]], **kwargs) -> AIResponse:
+
+    async def _make_request(
+            self, messages: List[Dict[str, str]], **kwargs) -> AIResponse:
         """Make request to OpenAI API"""
         payload = {
             "model": self.config.model,
@@ -208,36 +217,37 @@ class OpenAIProvider(BaseAIProvider):
             "temperature": kwargs.get("temperature", self.config.temperature),
             "max_tokens": kwargs.get("max_tokens", self.config.max_tokens)
         }
-        
+
         for attempt in range(self.config.max_retries):
             try:
                 response = await self.client.post("/chat/completions", json=payload)
                 response.raise_for_status()
-                
+
                 data = response.json()
-                
+
                 return AIResponse(
                     content=data["choices"][0]["message"]["content"],
                     usage=data.get("usage", {}),
                     model=data.get("model", self.config.model),
                     success=True
                 )
-                
+
             except httpx.HTTPStatusError as e:
                 logger.error(f"HTTP error (attempt {attempt + 1}): {e}")
                 if attempt == self.config.max_retries - 1:
                     return AIResponse("", {}, "", False, f"HTTP error: {e}")
                 await asyncio.sleep(2 ** attempt)  # Exponential backoff
-                
+
             except Exception as e:
                 logger.error(f"Request error (attempt {attempt + 1}): {e}")
                 if attempt == self.config.max_retries - 1:
                     return AIResponse("", {}, "", False, f"Request error: {e}")
                 await asyncio.sleep(2 ** attempt)
 
+
 class AnthropicProvider(BaseAIProvider):
     """Anthropic Claude API provider"""
-    
+
     def _setup_client(self):
         """Setup Anthropic client"""
         base_url = self.config.base_url or "https://api.anthropic.com"
@@ -250,58 +260,60 @@ class AnthropicProvider(BaseAIProvider):
             },
             timeout=self.config.timeout
         )
-    
-    async def _make_request(self, messages: List[Dict[str, str]], **kwargs) -> AIResponse:
+
+    async def _make_request(
+            self, messages: List[Dict[str, str]], **kwargs) -> AIResponse:
         """Make request to Anthropic API"""
         # Convert OpenAI format to Anthropic format
         system_msg = ""
         user_messages = []
-        
+
         for msg in messages:
             if msg["role"] == "system":
                 system_msg = msg["content"]
             else:
                 user_messages.append(msg)
-        
+
         payload = {
             "model": self.config.model,
             "max_tokens": kwargs.get("max_tokens", self.config.max_tokens),
             "temperature": kwargs.get("temperature", self.config.temperature),
             "messages": user_messages
         }
-        
+
         if system_msg:
             payload["system"] = system_msg
-        
+
         for attempt in range(self.config.max_retries):
             try:
                 response = await self.client.post("/v1/messages", json=payload)
                 response.raise_for_status()
-                
+
                 data = response.json()
-                
+
                 return AIResponse(
                     content=data["content"][0]["text"],
                     usage=data.get("usage", {}),
                     model=data.get("model", self.config.model),
                     success=True
                 )
-                
+
             except httpx.HTTPStatusError as e:
                 logger.error(f"HTTP error (attempt {attempt + 1}): {e}")
                 if attempt == self.config.max_retries - 1:
                     return AIResponse("", {}, "", False, f"HTTP error: {e}")
                 await asyncio.sleep(2 ** attempt)
-                
+
             except Exception as e:
                 logger.error(f"Request error (attempt {attempt + 1}): {e}")
                 if attempt == self.config.max_retries - 1:
                     return AIResponse("", {}, "", False, f"Request error: {e}")
                 await asyncio.sleep(2 ** attempt)
 
+
 class CustomProvider(BaseAIProvider):
     """Custom OpenAI-compatible API provider"""
-    
+
     def _setup_client(self):
         """Setup custom API client"""
         self.client = httpx.AsyncClient(
@@ -312,8 +324,9 @@ class CustomProvider(BaseAIProvider):
             },
             timeout=self.config.timeout
         )
-    
-    async def _make_request(self, messages: List[Dict[str, str]], **kwargs) -> AIResponse:
+
+    async def _make_request(
+            self, messages: List[Dict[str, str]], **kwargs) -> AIResponse:
         """Make request to custom OpenAI-compatible API"""
         payload = {
             "model": self.config.model,
@@ -321,93 +334,94 @@ class CustomProvider(BaseAIProvider):
             "temperature": kwargs.get("temperature", self.config.temperature),
             "max_tokens": kwargs.get("max_tokens", self.config.max_tokens)
         }
-        
+
         for attempt in range(self.config.max_retries):
             try:
                 response = await self.client.post("/v1/chat/completions", json=payload)
                 response.raise_for_status()
-                
+
                 data = response.json()
-                
+
                 return AIResponse(
                     content=data["choices"][0]["message"]["content"],
                     usage=data.get("usage", {}),
                     model=data.get("model", self.config.model),
                     success=True
                 )
-                
+
             except httpx.HTTPStatusError as e:
                 logger.error(f"HTTP error (attempt {attempt + 1}): {e}")
                 if attempt == self.config.max_retries - 1:
                     return AIResponse("", {}, "", False, f"HTTP error: {e}")
                 await asyncio.sleep(2 ** attempt)
-                
+
             except Exception as e:
                 logger.error(f"Request error (attempt {attempt + 1}): {e}")
                 if attempt == self.config.max_retries - 1:
                     return AIResponse("", {}, "", False, f"Request error: {e}")
                 await asyncio.sleep(2 ** attempt)
 
+
 class AIService:
     """Main AI service that manages different providers"""
-    
+
     def __init__(self, config: AIConfig):
         self.config = config
         self.provider = None
         self._setup_provider()
-    
+
     def _setup_provider(self):
         """Setup the appropriate AI provider"""
         if not self.config.enabled:
             logger.info("AI service disabled")
             return
-        
+
         provider_map = {
             "openai": OpenAIProvider,
             "anthropic": AnthropicProvider,
             "claude": AnthropicProvider,
             "custom": CustomProvider
         }
-        
+
         if self.config.provider in provider_map:
             self.provider = provider_map[self.config.provider](self.config)
             logger.info(f"AI provider initialized: {self.config.provider}")
         else:
             logger.error(f"Unknown AI provider: {self.config.provider}")
-    
+
     async def is_available(self) -> bool:
         """Check if AI service is available"""
         return self.config.enabled and self.provider is not None
-    
+
     async def test_connection(self) -> Dict[str, Any]:
         """Test connection to AI service"""
         if not await self.is_available():
             return {"success": False, "error": "AI service not available"}
-        
+
         try:
             response = await self.provider.generate_completion(
                 "Test message. Please respond with 'Connection successful.'",
                 "You are a test assistant. Respond briefly to test messages."
             )
-            
+
             return {
                 "success": response.success,
                 "error": response.error,
                 "model": response.model,
                 "response": response.content[:100] if response.content else ""
             }
-            
+
         except Exception as e:
             return {"success": False, "error": str(e)}
-    
+
     async def summarize_document(self, content: str) -> Dict[str, Any]:
         """Generate document summary using AI"""
         if not await self.is_available():
             return {"success": False, "error": "AI service not available"}
-        
+
         try:
             response = await self.provider.analyze_legal_content(content, "summary")
-            
+
             if response.success:
                 try:
                     parsed_response = json.loads(response.content)
@@ -425,23 +439,25 @@ class AIService:
                     }
             else:
                 return {"success": False, "error": response.error}
-                
+
         except Exception as e:
             logger.error(f"Document summarization failed: {e}")
             return {"success": False, "error": str(e)}
-    
-    async def categorize_document(self, content: str, folder_structure: Dict[str, List[str]]) -> Dict[str, Any]:
+
+    async def categorize_document(
+            self, content: str, folder_structure: Dict[str, List[str]]) -> Dict[str, Any]:
         """Categorize document using AI"""
         if not await self.is_available():
             return {"success": False, "error": "AI service not available"}
-        
+
         try:
             # Include folder structure in the prompt
-            categories_text = "\n".join([f"- {cat}" for cat in folder_structure.keys()])
+            categories_text = "\n".join(
+                [f"- {cat}" for cat in folder_structure.keys()])
             enhanced_content = f"Available categories:\n{categories_text}\n\nDocument to categorize:\n{content}"
-            
+
             response = await self.provider.analyze_legal_content(enhanced_content, "categorization")
-            
+
             if response.success:
                 try:
                     parsed_response = json.loads(response.content)
@@ -451,23 +467,25 @@ class AIService:
                         "usage": response.usage
                     }
                 except json.JSONDecodeError:
-                    return {"success": False, "error": "Invalid JSON response from AI"}
+                    return {"success": False,
+                            "error": "Invalid JSON response from AI"}
             else:
                 return {"success": False, "error": response.error}
-                
+
         except Exception as e:
             logger.error(f"Document categorization failed: {e}")
             return {"success": False, "error": str(e)}
-    
-    async def score_evidence(self, content: str, category: str) -> Dict[str, Any]:
+
+    async def score_evidence(
+            self, content: str, category: str) -> Dict[str, Any]:
         """Score evidence using AI"""
         if not await self.is_available():
             return {"success": False, "error": "AI service not available"}
-        
+
         try:
             enhanced_content = f"Document category: {category}\n\nDocument content:\n{content}"
             response = await self.provider.analyze_legal_content(enhanced_content, "scoring")
-            
+
             if response.success:
                 try:
                     parsed_response = json.loads(response.content)
@@ -477,22 +495,23 @@ class AIService:
                         "usage": response.usage
                     }
                 except json.JSONDecodeError:
-                    return {"success": False, "error": "Invalid JSON response from AI"}
+                    return {"success": False,
+                            "error": "Invalid JSON response from AI"}
             else:
                 return {"success": False, "error": response.error}
-                
+
         except Exception as e:
             logger.error(f"Evidence scoring failed: {e}")
             return {"success": False, "error": str(e)}
-    
+
     async def extract_entities(self, content: str) -> Dict[str, Any]:
         """Extract entities using AI"""
         if not await self.is_available():
             return {"success": False, "error": "AI service not available"}
-        
+
         try:
             response = await self.provider.analyze_legal_content(content, "entity_extraction")
-            
+
             if response.success:
                 try:
                     parsed_response = json.loads(response.content)
@@ -502,22 +521,23 @@ class AIService:
                         "usage": response.usage
                     }
                 except json.JSONDecodeError:
-                    return {"success": False, "error": "Invalid JSON response from AI"}
+                    return {"success": False,
+                            "error": "Invalid JSON response from AI"}
             else:
                 return {"success": False, "error": response.error}
-                
+
         except Exception as e:
             logger.error(f"Entity extraction failed: {e}")
             return {"success": False, "error": str(e)}
-    
+
     async def extract_timeline_events(self, content: str) -> Dict[str, Any]:
         """Extract timeline events using AI"""
         if not await self.is_available():
             return {"success": False, "error": "AI service not available"}
-        
+
         try:
             response = await self.provider.analyze_legal_content(content, "timeline")
-            
+
             if response.success:
                 try:
                     parsed_response = json.loads(response.content)
@@ -527,19 +547,21 @@ class AIService:
                         "usage": response.usage
                     }
                 except json.JSONDecodeError:
-                    return {"success": False, "error": "Invalid JSON response from AI"}
+                    return {"success": False,
+                            "error": "Invalid JSON response from AI"}
             else:
                 return {"success": False, "error": response.error}
-                
+
         except Exception as e:
             logger.error(f"Timeline extraction failed: {e}")
             return {"success": False, "error": str(e)}
-    
-    async def generate_case_analysis(self, all_documents: List[Dict[str, Any]], case_context: str) -> Dict[str, Any]:
+
+    async def generate_case_analysis(
+            self, all_documents: List[Dict[str, Any]], case_context: str) -> Dict[str, Any]:
         """Generate comprehensive case analysis"""
         if not await self.is_available():
             return {"success": False, "error": "AI service not available"}
-        
+
         try:
             # Prepare summary of all documents
             doc_summaries = []
@@ -547,9 +569,10 @@ class AIService:
                 doc_summaries.append({
                     "file": doc.get("original_name", "Unknown"),
                     "category": doc.get("category", "Unknown"),
-                    "summary": doc.get("summary", "")[:200]  # Truncate summaries
+                    # Truncate summaries
+                    "summary": doc.get("summary", "")[:200]
                 })
-            
+
             analysis_prompt = f"""
 Case Context: {case_context}
 
@@ -565,12 +588,12 @@ Please provide a comprehensive legal case analysis including:
 
 Format as JSON with these exact keys: case_overview, strength_assessment, key_evidence, potential_challenges, strategic_recommendations, timeline_significance
 """
-            
+
             response = await self.provider.generate_completion(
                 analysis_prompt,
                 "You are an expert legal analyst specializing in case strategy and evidence evaluation."
             )
-            
+
             if response.success:
                 try:
                     parsed_response = json.loads(response.content)
@@ -587,11 +610,11 @@ Format as JSON with these exact keys: case_overview, strength_assessment, key_ev
                     }
             else:
                 return {"success": False, "error": response.error}
-                
+
         except Exception as e:
             logger.error(f"Case analysis failed: {e}")
             return {"success": False, "error": str(e)}
-    
+
     async def close(self):
         """Close AI service connections"""
         if self.provider and self.provider.client:
@@ -601,9 +624,10 @@ Format as JSON with these exact keys: case_overview, strength_assessment, key_ev
 # AI-Enhanced LCAS Plugin
 # ================================
 
+
 class AIEnhancedLCASPlugin:
     """Plugin that integrates AI capabilities into LCAS"""
-    
+
     def __init__(self, ai_config: AIConfig):
         self.ai_service = AIService(ai_config)
         self.usage_stats = {
@@ -611,12 +635,13 @@ class AIEnhancedLCASPlugin:
             "successful_requests": 0,
             "total_tokens": 0
         }
-    
-    async def enhance_file_analysis(self, file_analysis: Dict[str, Any]) -> Dict[str, Any]:
+
+    async def enhance_file_analysis(
+            self, file_analysis: Dict[str, Any]) -> Dict[str, Any]:
         """Enhance file analysis with AI insights"""
         if not file_analysis.get("content"):
             return file_analysis
-        
+
         try:
             # Generate AI summary
             if not file_analysis.get("summary"):
@@ -624,17 +649,18 @@ class AIEnhancedLCASPlugin:
                 if summary_result["success"]:
                     file_analysis["ai_summary"] = summary_result["summary"]
                     self._update_usage_stats(summary_result.get("usage", {}))
-            
+
             # AI-powered categorization
-            if not file_analysis.get("category") or file_analysis["category"] == "09_FOR_HUMAN_REVIEW":
+            if not file_analysis.get(
+                    "category") or file_analysis["category"] == "09_FOR_HUMAN_REVIEW":
                 cat_result = await self.ai_service.categorize_document(
-                    file_analysis["content"], 
+                    file_analysis["content"],
                     self._get_folder_structure()
                 )
                 if cat_result["success"]:
                     file_analysis["ai_categorization"] = cat_result["categorization"]
                     self._update_usage_stats(cat_result.get("usage", {}))
-            
+
             # AI evidence scoring
             if file_analysis.get("category"):
                 score_result = await self.ai_service.score_evidence(
@@ -644,33 +670,34 @@ class AIEnhancedLCASPlugin:
                 if score_result["success"]:
                     file_analysis["ai_scores"] = score_result["scoring"]
                     self._update_usage_stats(score_result.get("usage", {}))
-            
+
             # Entity extraction
             entity_result = await self.ai_service.extract_entities(file_analysis["content"])
             if entity_result["success"]:
                 file_analysis["ai_entities"] = entity_result["entities"]
                 self._update_usage_stats(entity_result.get("usage", {}))
-            
+
             # Timeline extraction
             timeline_result = await self.ai_service.extract_timeline_events(file_analysis["content"])
             if timeline_result["success"]:
                 file_analysis["ai_timeline"] = timeline_result["timeline"]
                 self._update_usage_stats(timeline_result.get("usage", {}))
-            
+
             self.usage_stats["successful_requests"] += 1
-            
+
         except Exception as e:
             logger.error(f"AI enhancement failed: {e}")
             file_analysis["ai_error"] = str(e)
-        
+
         self.usage_stats["total_requests"] += 1
         return file_analysis
-    
-    async def generate_final_case_report(self, all_documents: List[Dict[str, Any]], case_context: str) -> Dict[str, Any]:
+
+    async def generate_final_case_report(
+            self, all_documents: List[Dict[str, Any]], case_context: str) -> Dict[str, Any]:
         """Generate AI-powered final case analysis report"""
         try:
             analysis_result = await self.ai_service.generate_case_analysis(all_documents, case_context)
-            
+
             if analysis_result["success"]:
                 self._update_usage_stats(analysis_result.get("usage", {}))
                 return {
@@ -680,11 +707,11 @@ class AIEnhancedLCASPlugin:
                 }
             else:
                 return {"success": False, "error": analysis_result["error"]}
-                
+
         except Exception as e:
             logger.error(f"Final case report generation failed: {e}")
             return {"success": False, "error": str(e)}
-    
+
     def _get_folder_structure(self) -> Dict[str, List[str]]:
         """Get the standard LCAS folder structure"""
         return {
@@ -705,33 +732,38 @@ class AIEnhancedLCASPlugin:
             ],
             "09_FOR_HUMAN_REVIEW": []
         }
-    
+
     def _update_usage_stats(self, usage: Dict[str, int]):
         """Update usage statistics"""
         if "total_tokens" in usage:
             self.usage_stats["total_tokens"] += usage["total_tokens"]
         elif "prompt_tokens" in usage and "completion_tokens" in usage:
-            self.usage_stats["total_tokens"] += usage["prompt_tokens"] + usage["completion_tokens"]
-    
+            self.usage_stats["total_tokens"] += usage["prompt_tokens"] + \
+                usage["completion_tokens"]
+
     async def close(self):
         """Close AI service"""
         await self.ai_service.close()
-    
+
     def get_usage_report(self) -> Dict[str, Any]:
         """Get AI usage statistics"""
         return {
             "total_requests": self.usage_stats["total_requests"],
             "successful_requests": self.usage_stats["successful_requests"],
             "success_rate": (
-                self.usage_stats["successful_requests"] / max(self.usage_stats["total_requests"], 1)
+                self.usage_stats["successful_requests"] /
+                max(self.usage_stats["total_requests"], 1)
             ) * 100,
             "total_tokens_used": self.usage_stats["total_tokens"],
             "average_tokens_per_request": (
-                self.usage_stats["total_tokens"] / max(self.usage_stats["successful_requests"], 1)
+                self.usage_stats["total_tokens"] /
+                max(self.usage_stats["successful_requests"], 1)
             )
         }
 
 # Example usage
+
+
 async def main():
     """Example of using the AI integration"""
     # Configure AI
@@ -741,29 +773,29 @@ async def main():
         model="gpt-4",
         enabled=True
     )
-    
+
     # Create AI plugin
     ai_plugin = AIEnhancedLCASPlugin(ai_config)
-    
+
     # Test connection
     ai_service = AIService(ai_config)
     connection_test = await ai_service.test_connection()
     print(f"Connection test: {connection_test}")
-    
+
     # Example file analysis enhancement
     sample_file_analysis = {
         "original_name": "sample_document.pdf",
         "content": "This is a sample legal document content for testing AI integration...",
         "category": ""
     }
-    
+
     enhanced_analysis = await ai_plugin.enhance_file_analysis(sample_file_analysis)
     print(f"Enhanced analysis keys: {list(enhanced_analysis.keys())}")
-    
+
     # Get usage report
     usage_report = ai_plugin.get_usage_report()
     print(f"AI Usage Report: {usage_report}")
-    
+
     # Clean up
     await ai_plugin.close()
     await ai_service.close()
