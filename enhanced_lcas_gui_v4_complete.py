@@ -3,6 +3,18 @@ LCAS v4.0 - Complete Enhanced GUI System (Part 2)
 Continuation of the complete GUI implementation
 """
 
+save_configuration(self):
+    """Save current configuration"""
+    try:
+        config_data = {
+            "source_directory": self.source_dir_entry.get(),
+            "target_directory": self.target_dir_entry.get(),
+            "ai_enabled": self.ai_enabled_checkbox.get(),
+            "advanced_nlp": self.advanced_nlp_checkbox.get(),
+            "semantic_clustering": self.semantic_clustering_checkbox.get(),
+            "analysis_depth": self.analysis_depth_menu.get()
+        }
+
 # Assume missing imports from part 1, e.g.:
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
@@ -71,12 +83,52 @@ class EnhancedLCASGUIPart2: # Placeholder class
                 "semantic_clustering": self.semantic_clustering_checkbox.get(),
                 "analysis_depth": self.analysis_depth_menu.get()
             }
+            main
 
             config_dir = Path("config")
             config_dir.mkdir(exist_ok=True)
 
             with open(config_dir / "lcas_config.json", "w") as f:
                 json.dump(config_data, f, indent=2)
+
+        messagebox.showinfo(
+    "Configuration Saved",
+     "Configuration saved successfully!")
+        self.update_status("Configuration saved")
+
+    except Exception as e:
+        messagebox.showerror("Save Error",
+     f"Failed to save configuration: {e}")
+
+
+def load_configuration(self):
+    """Load configuration from file"""
+    try:
+        config_file = Path("config/lcas_config.json")
+        if config_file.exists():
+            with open(config_file, "r") as f:
+                config_data = json.load(f)
+
+            # Update GUI elements
+            self.source_dir_entry.delete(0, "end")
+            self.source_dir_entry.insert(
+    0, config_data.get(
+        "source_directory", ""))
+
+            self.target_dir_entry.delete(0, "end")
+            self.target_dir_entry.insert(
+    0, config_data.get(
+        "target_directory", ""))
+
+            if config_data.get("ai_enabled", True):
+                self.ai_enabled_checkbox.select()
+            else:
+                self.ai_enabled_checkbox.deselect()
+
+            if config_data.get("advanced_nlp", True):
+                self.advanced_nlp_checkbox.select()
+            else:
+                self.advanced_nlp_checkbox.deselect()
 
             messagebox.showinfo(
                 "Configuration Saved",
@@ -132,10 +184,80 @@ class EnhancedLCASGUIPart2: # Placeholder class
                 self.config_status_label.configure(
                     text="⚙️ Configuration: Loaded ✅")
                 self.update_status("Configuration loaded")
+        main
 
             else:
+                self.semantic_clustering_checkbox.deselect()
+
+            self.analysis_depth_menu.set(
+    config_data.get(
+        "analysis_depth",
+         "comprehensive"))
+
+            self.config_status_label.configure(
+                text="⚙️ Configuration: Loaded ✅")
+            self.update_status("Configuration loaded")
+
+        else:
+            messagebox.showinfo("No Configuration",
+     "No configuration file found. Using defaults.")
+
+    except Exception as e:
+        messagebox.showerror("Load Error",
+     f"Failed to load configuration: {e}")
+
+# Processing Methods
+
+
+def start_preservation(self):
+        feat / ai - integration - fix
+
+        feat / ai - integration - fix
+
+        feat / ai - integration - fix
+
+        feat / ai - integration - fix
+
+        feat / ai - integration - fix
+
+        feat / ai - integration - fix
+        main
+        main
+        main
+        main
+        main
+    """Start file preservation process"""
+    if self.is_processing:
+        messagebox.showwarning("Processing", "A process is already running!")
+        return
+    
+    source_path = Path(self.source_dir_entry.get())
+    target_path = Path(self.target_dir_entry.get())
+
+    if not source_path.exists():
+        messagebox.showerror("Directory Error", f"Source directory does not exist:\n{source_path}")
+        return
+
+    # Confirm with user
+    response = messagebox.askyesno(
+        "Start Preservation",
+        f"This will preserve files from:\n{source_path}\n\n"
+        f"To:\n{target_path}\n\n"
+        f"Continue?"
+    )
+        feat/ai-integration-fix
+
+        feat/ai-integration-fix
+
+        feat/ai-integration-fix
+
+        feat/ai-integration-fix
+
+        feat/ai-integration-fix
+
                 messagebox.showinfo("No Configuration",
                     "No configuration file found. Using defaults.")
+        main
 
         except Exception as e:
             messagebox.showerror("Load Error",

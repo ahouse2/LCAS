@@ -85,5 +85,6 @@ class PatternDiscoveryPlugin:
                 'take the kids', 'never see them', 'bad mother',
                 'unfit parent', 'call CPS', 'get custody'
             ],
+          
             'technological_abuse': [],
         }

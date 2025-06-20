@@ -273,7 +273,6 @@ def main():
                 print("Analysis cancelled.")
                 continue
 
-            # Create/update config
             # Corrected: use source_dir, target_dir from check_requirements()
             config_file = create_config_file(source_dir, target_dir)
             # Run analysis

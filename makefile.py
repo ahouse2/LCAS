@@ -91,7 +91,9 @@ if errorlevel 1 (
 )
 
 REM Install spaCy model
+
 echo INFO: Installing spaCy English model...
+
 python - m spacy download en_core_web_sm
 
 REM Create config directory

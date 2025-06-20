@@ -289,6 +289,8 @@ class LCASMainGUI:
         ttk.Checkbutton(log_debug_frame, text="Debug Mode",
                         variable=self.debug_mode_var).grid(row=1, column=0, columnspan=2, sticky=tk.W, padx=10, pady=5)
 
+      main
+
         ttk.Label(
             log_debug_frame,
             text="Plugins Directory:").grid(
@@ -412,7 +414,9 @@ class LCASMainGUI:
             column=3,
             padx=10,
             pady=5)
-
+        
+        main
+        
         # Processing Options Frame
         proc_options_frame = ttk.LabelFrame(
             scrollable_frame, text="Processing Options")
@@ -865,14 +869,7 @@ class LCASMainGUI:
     def save_configuration(self):
         """Save current configuration"""
         if self.core:
-            # Update all config fields from GUI variables
-            self.core.config.case_name = self.case_name_var.get()
-            self.core.config.source_directory = self.source_dir_var.get()
-            self.core.config.target_directory = self.target_dir_var.get()
-            self.core.config.plugins_directory = self.plugins_dir_var.get()
-            # self.core.config.enabled_plugins - managed by plugin manager UI /
-            # core logic
-            self.core.config.debug_mode = self.debug_mode_var.get()
+          
             self.core.config.log_level = self.log_level_var.get()
 
             self.core.config.min_probative_score = self.min_probative_score_var.get()
@@ -889,6 +886,7 @@ class LCASMainGUI:
             self.core.config.max_concurrent_files = self.max_concurrent_files_var.get()
 
             if self.core.save_config():
+              
                 messagebox.showinfo(
                     "Success", "Configuration saved successfully!")
             else:

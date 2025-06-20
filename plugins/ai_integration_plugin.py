@@ -1743,6 +1743,7 @@ System Health: {status['system_health'].upper()}
         logger.info(f"Configuration imported from {file_path}")
 
 # Factory function for LCAS integration
+
 def create_enhanced_ai_plugin(lcas_config) -> "EnhancedAIFoundationPlugin":
     """Factory function to create enhanced AI plugin for LCAS"""
     
