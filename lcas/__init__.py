@@ -10,7 +10,7 @@ __description__ = "Legal Case Analysis System - AI-Powered Evidence Organization
 
 # Core imports
 from .core import LCASCore, LCASConfig
-from .plugins import PluginManager, PluginInterface
+from .core import PluginManager, PluginInterface
 
 # Version info
 VERSION_INFO = {

@@ -1,4 +1,4 @@
-   """
+"""
 Enhanced LCAS AI Foundation Plugin - Production Ready
 Includes rate limiting, user configurability, and generalized legal analysis
 """
