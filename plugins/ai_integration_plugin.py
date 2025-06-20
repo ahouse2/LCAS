@@ -1613,6 +1613,10 @@ System Health: {status['system_health'].upper()}
         logger.info(f"Configuration imported from {file_path}")
 
 # Factory function for LCAS integration
+        feat/ai-integration-fix
+
+      feat/ai-integration-fix
+        main
 def create_enhanced_ai_plugin(lcas_config) -> "EnhancedAIFoundationPlugin":
     """Factory function to create enhanced AI plugin for LCAS"""
     
@@ -1632,6 +1636,27 @@ def create_enhanced_ai_plugin(lcas_config) -> "EnhancedAIFoundationPlugin":
     
     logger.info("Enhanced AI Foundation Plugin created and configured for LCAS")
     return ai_plugin
+
+    def create_enhanced_ai_plugin(lcas_config) -> EnhancedAIFoundationPlugin:
+        """Factory function to create enhanced AI plugin for LCAS"""
+
+        # Extract AI configuration from LCAS config if available
+        config_path = getattr(lcas_config, 'ai_config_path', 'config/ai_config.json')
+
+        # Create the enhanced plugin
+        ai_plugin = EnhancedAIFoundationPlugin(config_path)
+
+        # Update user settings based on LCAS config
+        if hasattr(lcas_config, 'case_theory'):
+            ai_plugin.update_user_settings(
+                case_type=lcas_config.case_theory.case_type,
+                analysis_depth=getattr(lcas_config, 'ai_analysis_depth', 'standard'),
+                confidence_threshold=getattr(lcas_config, 'ai_confidence_threshold', 0.6)
+            )
+
+        logger.info("Enhanced AI Foundation Plugin created and configured for LCAS")
+        return ai_plugin
+        main
 
 # Backward compatibility
 def create_ai_plugin(lcas_config):
