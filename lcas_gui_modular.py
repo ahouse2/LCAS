@@ -406,9 +406,7 @@ class LCASMainGUI:
             total_plugins = len(analysis_plugins)
 
             for i, plugin in enumerate(analysis_plugins):
-                self.root.after(
-                    0, self.log_message, f"Running {
-                        plugin.name}...")
+                self.root.after(0, self.log_message, f"Running {plugin.name}...")
                 self.root.after(0, self.update_progress,
                                 (i / total_plugins) * 100)
 

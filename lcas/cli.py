@@ -91,9 +91,7 @@ async def run_analysis_cli(core: LCASCore):
                 console.print("[yellow]No analysis plugins loaded[/yellow]")
                 return
 
-            console.print(
-                f"[green]Loaded {
-                    len(analysis_plugins)} analysis plugins[/green]")
+            console.print(f"[green]Loaded {len(analysis_plugins)} analysis plugins[/green]")
 
             # Run analysis plugins
             for plugin in analysis_plugins:

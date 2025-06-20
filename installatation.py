@@ -34,11 +34,7 @@ def check_python_version():
         print(
             f"❌ Python 3.9+ required. Current version: {version.major}.{version.minor}")
         return False
-    print(
-        f"✅ Python version {
-            version.major}.{
-            version.minor}.{
-                version.micro} is compatible")
+    print(f"✅ Python version {version.major}.{version.minor}.{version.micro} is compatible")
     return True
 
 

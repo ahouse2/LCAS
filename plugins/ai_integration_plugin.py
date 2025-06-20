@@ -315,9 +315,7 @@ class EnhancedAIRateLimiter:
         if self.degradation_mode and now < self.degraded_until:
             if self.config.pause_on_limit:
                 wait_time = self.degraded_until - now
-                logger.info(
-    f"AI in degradation mode, waiting {
-        wait_time:.1f} seconds")
+                logger.info(f"AI in degradation mode, waiting {wait_time:.1f} seconds")
                 await asyncio.sleep(wait_time)
                 self.degradation_mode = False
             else:
@@ -390,9 +388,7 @@ class EnhancedAIRateLimiter:
             if self.consecutive_errors >= 3:
                 self.current_rate_multiplier = max(
     0.3, self.current_rate_multiplier * 0.7)
-                logger.warning(
-    f"AI rate limited due to errors, reduced to {
-        self.current_rate_multiplier:.1%} of normal rate")
+                logger.warning(f"AI rate limited due to errors, reduced to {self.current_rate_multiplier:.1%} of normal rate")
 
     async def _handle_rate_limit(self, limit_type: str, window_seconds: int):
         """Handle rate limit with adaptive backoff"""
@@ -410,9 +406,7 @@ class EnhancedAIRateLimiter:
             self.degradation_mode = True
             self.degraded_until = time.time() + backoff_time
 
-            logger.info(
-    f"AI paused for {
-        backoff_time:.1f} seconds due to {limit_type} limit")
+            logger.info(f"AI paused for {backoff_time:.1f} seconds due to {limit_type} limit")
         else:
             self.degradation_mode = True
             self.degraded_until = time.time() + 300  # 5 minute cooldown
