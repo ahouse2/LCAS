@@ -9,6 +9,12 @@ from .core import (
     ExportPlugin,
     CaseTheoryConfig # Also exposing this as it's part of LCASConfig
 )
+from .data_models import (
+    FileAnalysisData,
+    FileExtractionMetadata,
+    FileIngestionDetail,
+    FileHashDetail
+)
 
 __all__ = [
     'LCASCore',
@@ -17,5 +23,9 @@ __all__ = [
     'AnalysisPlugin',
     'UIPlugin',
     'ExportPlugin',
-    'CaseTheoryConfig'
+    'CaseTheoryConfig',
+    'FileAnalysisData',
+    'FileExtractionMetadata',
+    'FileIngestionDetail',
+    'FileHashDetail'
 ]

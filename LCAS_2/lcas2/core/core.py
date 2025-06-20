@@ -14,596 +14,470 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional, Type, Callable
 from dataclasses import dataclass, asdict, field
 from datetime import datetime
-import tkinter as tk
-from tkinter import ttk, messagebox
+# import tkinter as tk # Not directly used by core logic, but UIPlugin interface implies it for parent_widget
+# from tkinter import ttk, messagebox # Not directly used by core logic
 from abc import ABC, abstractmethod
 
-# Configure logging
+# Assuming data_models.py is in the same directory or accessible via PYTHONPATH
+from .data_models import FileAnalysisData # Ensure CaseTheoryConfig is here if not defined below
+
+# Configure logging (basic setup, can be enhanced)
+# Path resolution for logs needs to be robust if core.py is moved or called from different CWD
+log_dir_for_core = (Path(__file__).parent.parent.parent / "logs").resolve() # Assuming LCAS_2 is project root
+log_dir_for_core.mkdir(parents=True, exist_ok=True)
+core_log_file_path = log_dir_for_core / "lcas_core.log"
+
+# BasicConfig should only be called once. If other modules also call it, it might not behave as expected.
+# Consider a dedicated logging setup function if issues arise.
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.INFO, # Default, will be overridden by LCASConfig
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('../logs/lcas_initial.log'), # Assuming logs dir is one level up from core dir
+        logging.FileHandler(core_log_file_path),
         logging.StreamHandler(sys.stdout)
-    ]
+    ],
+    force=True # If basicConfig might have been called before (e.g. by a plugin if not careful)
 )
-
 logger = logging.getLogger(__name__)
 
 
 @dataclass
+class CaseTheoryConfig: # Moved here for self-containment if not in data_models
+    """Configuration for the case theory and objectives."""
+    case_type: str = "general_civil"  # e.g., family_law, personal_injury, contract_dispute
+    primary_objective: str = "Identify key evidence related to breach of contract."
+    key_questions: List[str] = field(default_factory=list)
+    desired_outcomes: List[str] = field(default_factory=list)
+    # Placeholder for more complex theory components:
+    # legal_elements_to_prove: List[str] = field(default_factory=list)
+    # relevant_statutes: List[str] = field(default_factory=list)
+
+@dataclass
 class LCASConfig:
-    """Core application configuration"""
-    case_name: str = ""
+    case_name: str = "Untitled Case"
     source_directory: str = ""
     target_directory: str = ""
-    plugins_directory: str = "../plugins" # Path relative to core.py location
-    enabled_plugins: List[str] = None
+    # Path relative to project root (LCAS_2/). core.py is in lcas2/core.
+    plugins_directory: str = "lcas2/plugins"
+    enabled_plugins: List[str] = field(default_factory=list)
     debug_mode: bool = False
     log_level: str = "INFO"
-
-    # GUI specific settings
-    gui_theme: str = "system"
+    gui_theme: str = "system" # 'system', 'light', 'dark' - UI specific
     last_window_width: int = 1200
     last_window_height: int = 800
-
-    # AI Plugin related configurations
-    ai_config_path: str = "config/ai_config.json" # Path to AI plugin's specific config, relative to project root
-    ai_analysis_depth: str = "standard" # Default for AI analysis
-    ai_confidence_threshold: float = 0.6 # Default for AI confidence
-
-    # Analysis settings
-    min_probative_score: float = 0.3
-    min_relevance_score: float = 0.5
-    similarity_threshold: float = 0.85
-
-    # Scoring weights
-    probative_weight: float = 0.4
-    relevance_weight: float = 0.3
-    admissibility_weight: float = 0.3
-
-    # Processing options
-    enable_deduplication: bool = True
-    enable_advanced_nlp: bool = True
-    generate_visualizations: bool = True
-    max_concurrent_files: int = 5
-
+    ai_config_path: str = "config/ai_config.json" # Relative to project root
+    ai_analysis_depth: str = "standard" # basic, standard, comprehensive
+    ai_confidence_threshold: float = 0.6
+    min_probative_score: float = 0.3; min_relevance_score: float = 0.5; similarity_threshold: float = 0.85
+    probative_weight: float = 0.4; relevance_weight: float = 0.3; admissibility_weight: float = 0.3
+    enable_deduplication: bool = True; enable_advanced_nlp: bool = True; generate_visualizations: bool = True
+    max_concurrent_files: int = 5 # For parallel processing in plugins if they support it
     case_theory: 'CaseTheoryConfig' = field(default_factory=lambda: CaseTheoryConfig())
+
+    # Standard plugin names used by core logic (e.g., for specific data passing)
+    file_ingestion_plugin_name: str = "File Ingestion" # Matches plugin's @property name
+    hash_generation_plugin_name: str = "Hash Generation"
+    content_extraction_plugin_name: str = "Content Extraction"
+    image_analysis_plugin_name: str = "Image Analysis"
+    ai_wrapper_plugin_name: str = "lcas_ai_wrapper_plugin" # Actual plugin name from its class
+    timeline_analysis_plugin_name: str = "Timeline Analysis"
+    pattern_discovery_plugin_name: str = "Pattern Discovery"
+    evidence_categorization_plugin_name: str = "Evidence Categorization"
+    evidence_scoring_plugin_name: str = "Evidence Scoring" # Added
+    case_management_plugin_name: str = "Case Management"
+    report_generation_plugin_name: str = "Report Generation"
+
+    pipeline_plugin_order: List[str] = field(default_factory=lambda: [
+        "Content Extraction", # Produces initial FileAnalysisData with content
+        "Image Analysis",     # Adds image OCR and analysis to FileAnalysisData
+        "lcas_ai_wrapper_plugin", # Adds AI summaries, tags to FileAnalysisData
+        "Timeline Analysis",  # Extracts events, can add to FileAnalysisData
+        "Pattern Discovery",  # Identifies patterns from FileAnalysisData, can add to FAD
+        "Evidence Scoring",   # Adds scores to FileAnalysisData
+        "Evidence Categorization", # Assigns categories, updates FileAnalysisData
+        "Case Management",    # Organizes files based on FAD categories/theories
+    ])
 
 
     def __post_init__(self):
-        if self.enabled_plugins is None:
-            self.enabled_plugins = [
-                "file_ingestion_plugin",
-                "hash_generation_plugin",
-                "evidence_categorization_plugin",
-                "timeline_analysis_plugin",
-                "report_generation_plugin",
-                "lcas_ai_wrapper_plugin" # Assuming this is the intended name for the AI plugin wrapper
+        if not self.enabled_plugins:
+            self.enabled_plugins = [ # Default enabled plugins
+                self.file_ingestion_plugin_name, self.hash_generation_plugin_name,
+                self.content_extraction_plugin_name, self.image_analysis_plugin_name,
+                self.ai_wrapper_plugin_name, self.timeline_analysis_plugin_name,
+                self.pattern_discovery_plugin_name,
+                self.evidence_scoring_plugin_name, # Added
+                self.evidence_categorization_plugin_name,
+                self.case_management_plugin_name, self.report_generation_plugin_name
             ]
 
-@dataclass
-class CaseTheoryConfig:
-    """Configuration related to case theory for AI analysis"""
-    case_type: str = "general" # Default case_type for AI
-    # Potentially other fields like 'custom_instructions', 'key_elements' etc.
-
-
 class PluginInterface(ABC):
-    """Base interface for all LCAS plugins"""
-
-    @property
+    @property @abstractmethod
+    def name(self) -> str: pass
+    @property @abstractmethod
+    def version(self) -> str: pass
+    @property @abstractmethod
+    def description(self) -> str: pass
+    @property @abstractmethod
+    def dependencies(self) -> List[str]: pass
     @abstractmethod
-    def name(self) -> str:
-        """Plugin name"""
-        pass
-
-    @property
+    async def initialize(self, core_app: 'LCASCore') -> bool: pass
     @abstractmethod
-    def version(self) -> str:
-        """Plugin version"""
-        pass
-
-    @property
-    @abstractmethod
-    def description(self) -> str:
-        """Plugin description"""
-        pass
-
-    @property
-    @abstractmethod
-    def dependencies(self) -> List[str]:
-        """Plugin dependencies"""
-        pass
-
-    @abstractmethod
-    async def initialize(self, core_app: 'LCASCore') -> bool:
-        """Initialize the plugin"""
-        pass
-
-    @abstractmethod
-    async def cleanup(self) -> None:
-        """Cleanup plugin resources"""
-        pass
-
+    async def cleanup(self) -> None: pass
 
 class AnalysisPlugin(PluginInterface):
-    """Base class for analysis plugins"""
-
     @abstractmethod
-    async def analyze(self, data: Any) -> Dict[str, Any]:
-        """Perform analysis on data"""
-        pass
-
-
+    async def analyze(self, data: Any) -> Dict[str, Any]: pass
 class UIPlugin(PluginInterface):
-    """Base class for UI plugins"""
-
     @abstractmethod
-    def create_ui_elements(self, parent_widget) -> List[tk.Widget]:
-        """Create UI elements for this plugin"""
-        pass
-
-
+    def create_ui_elements(self, parent_widget: Any) -> List[Any]: pass
 class ExportPlugin(PluginInterface):
-    """Base class for export/visualization plugins"""
-
     @abstractmethod
-    async def export(self, data: Any, output_path: str) -> bool:
-        """Export data to specified format"""
-        pass
-
+    async def export(self, data: Any, output_path: str) -> bool: pass
 
 class PluginManager:
-    """Manages all plugins in the LCAS system"""
-
-    def __init__(self, plugins_directory: str = "plugins"):
-        # Ensure plugins_directory is an absolute path or correctly relative to project root
-        # core.py is in lcas2/core, so if plugins_directory is ../plugins, it refers to lcas2/plugins
-        self.plugins_directory = Path(plugins_directory)
-        if not self.plugins_directory.is_absolute():
-             # Assuming core.py is in LCAS_2/lcas2/core/
-            self.plugins_directory = Path(__file__).parent.parent / plugins_directory
-
+    def __init__(self, plugins_directory: str, core_app_ref: 'LCASCore'):
+        self.plugins_directory_str = plugins_directory # Store as string from config
         self.loaded_plugins: Dict[str, PluginInterface] = {}
-        self.plugin_configs: Dict[str, Dict] = {}
         self.logger = logging.getLogger(f"{__name__}.PluginManager")
-        self.logger.info(f"PluginManager initialized. Plugin directory set to: {self.plugins_directory.resolve()}")
-
+        self.core_app = core_app_ref # Reference to LCASCore instance
 
     def discover_plugins(self) -> List[str]:
-        """Discover available plugins in the plugins directory"""
-        if not self.plugins_directory.exists():
-            self.logger.warning(f"Plugins directory does not exist: {self.plugins_directory.resolve()}")
-            self.plugins_directory.mkdir(parents=True, exist_ok=True) # Attempt to create
-            return []
+        # Resolve plugins_directory relative to project_root for discovery
+        # This assumes plugins_directory in config is relative to project_root
+        resolved_plugins_dir = self.core_app.project_root / self.plugins_directory_str
+        if not resolved_plugins_dir.exists():
+            self.logger.warning(f"Plugins directory missing: {resolved_plugins_dir.resolve()}"); return []
+        self.logger.info(f"Discovering plugins in: {resolved_plugins_dir.resolve()}")
+        return [p.stem for p in resolved_plugins_dir.glob("*_plugin.py")] # e.g. file_ingestion_plugin
 
-        plugins = []
-        for file_path in self.plugins_directory.glob("*_plugin.py"):
-            plugin_name = file_path.stem
-            plugins.append(plugin_name)
+    async def load_plugin(self, plugin_name_stem: str) -> bool: # Takes stem e.g. 'file_ingestion_plugin'
+        # Add plugins dir to sys.path temporarily for import
+        resolved_plugins_dir = (self.core_app.project_root / self.plugins_directory_str).resolve()
+        plugins_dir_abs_str = str(resolved_plugins_dir)
 
-        self.logger.info(f"Discovered {len(plugins)} plugins in {self.plugins_directory.resolve()}: {plugins}")
-        return plugins
+        original_sys_path = list(sys.path)
+        if plugins_dir_abs_str not in sys.path:
+            sys.path.insert(0, plugins_dir_abs_str)
 
-    async def load_plugin(self, plugin_name: str,
-                          core_app: 'LCASCore') -> bool:
-        """Load a specific plugin"""
         try:
-            # Temporarily add plugins directory to sys.path for importlib
-            # This ensures that plugins can be found regardless of current working directory.
-            plugins_dir_str = str(self.plugins_directory.resolve())
-            if plugins_dir_str not in sys.path:
-                sys.path.insert(0, plugins_dir_str)
+            module = importlib.import_module(plugin_name_stem) # Use stem for import
+            cls_name = "".join(p.capitalize() for p in plugin_name_stem.replace("_plugin","").split("_")) + "Plugin"
+            if not hasattr(module, cls_name):
+                self.logger.error(f"Plugin module {plugin_name_stem} has no class {cls_name}"); return False
 
-            module = importlib.import_module(plugin_name)
+            plugin_instance = getattr(module, cls_name)()
 
-            # Clean up sys.path if it was added
-            if sys.path[0] == plugins_dir_str: # Check if it's the one we added
-                 del sys.path[0]
-
-            plugin_class_name = self._get_plugin_class_name(plugin_name)
-            if not hasattr(module, plugin_class_name):
-                self.logger.error(
-                    f"Plugin {plugin_name} does not have class {plugin_class_name}")
-                return False
-
-            plugin_class = getattr(module, plugin_class_name)
-            plugin_instance = plugin_class()
-
-            if await plugin_instance.initialize(core_app):
-                self.loaded_plugins[plugin_name] = plugin_instance
-                self.logger.info(f"Successfully loaded plugin: {plugin_name}")
+            # Use plugin_instance.name (from @property) as the key for loaded_plugins
+            actual_plugin_name = plugin_instance.name
+            if await plugin_instance.initialize(self.core_app):
+                self.loaded_plugins[actual_plugin_name] = plugin_instance
+                self.logger.info(f"Successfully loaded and initialized plugin: {actual_plugin_name} (from {plugin_name_stem})")
                 return True
             else:
-                self.logger.error(
-                    f"Failed to initialize plugin: {plugin_name}")
-                return False
-
+                self.logger.error(f"Failed to initialize plugin: {actual_plugin_name} (from {plugin_name_stem})"); return False
         except Exception as e:
-            self.logger.error(f"Error loading plugin {plugin_name}: {e}", exc_info=True)
-            # Clean up sys.path in case of error too
-            plugins_dir_str_on_error = str(self.plugins_directory.resolve())
-            if sys.path and sys.path[0] == plugins_dir_str_on_error:
-                 del sys.path[0]
-            return False
+            self.logger.error(f"Error loading plugin {plugin_name_stem}: {e}", exc_info=True); return False
+        finally:
+            sys.path = original_sys_path # Restore original sys.path
 
-    def _get_plugin_class_name(self, plugin_name: str) -> str:
-        """Convert plugin filename to expected class name"""
-        parts = plugin_name.replace('_plugin', '').split('_')
-        return ''.join(word.capitalize() for word in parts) + 'Plugin'
+    async def load_all_plugins(self, enabled_plugin_names: List[str]):
+        discovered_stems = self.discover_plugins()
+        for plugin_stem in discovered_stems:
+            # Check if this plugin (identified by its stem) should be loaded based on enabled_plugins list
+            # This requires matching stem to the plugin's actual name (property) or having a mapping.
+            # For now, we load then check its name.
+            # A better approach might be to have plugin metadata files or a naming convention.
 
-    async def load_all_plugins(
-            self, core_app: 'LCASCore', enabled_only: bool = True) -> None:
-        """Load all discovered plugins"""
-        plugins = self.discover_plugins()
+            # Peek at class name to guess plugin actual name for enabled check
+            # This is a bit fragile, relies on consistent naming.
+            temp_class_name_for_check = "".join(p.capitalize() for p in plugin_stem.replace("_plugin","").split("_")) + "Plugin"
+            # This is a temporary check. A plugin should ideally have a static method or metadata to get its name before full load.
+            # For now, we proceed to load and then check against enabled_plugins.
+            # This means plugins not in 'enabled_plugins' are still loaded and initialized, then potentially ignored by pipeline.
 
-        for plugin_name in plugins:
-            if enabled_only and plugin_name not in (core_app.config.enabled_plugins or []):
-                self.logger.debug(f"Skipping disabled plugin: {plugin_name}")
-                continue
-            await self.load_plugin(plugin_name, core_app)
+            if await self.load_plugin(plugin_stem):
+                # After loading, check if its actual name is in enabled_plugin_names
+                # This part is tricky as load_plugin already adds to self.loaded_plugins
+                # We need to find the plugin that was just loaded.
+                # Assuming plugin_stem is unique enough to find the module and then its class.
+                # This is a simplified approach.
 
-    def get_plugins_by_type(
-            self, plugin_type: Type[PluginInterface]) -> List[PluginInterface]:
-        """Get all loaded plugins of a specific type"""
-        return [plugin for plugin in self.loaded_plugins.values()
-                if isinstance(plugin, plugin_type)]
+                # Find the plugin instance that was just added (its key is actual_plugin_name)
+                # This logic needs refinement; currently, it might pick up an unrelated plugin if names are not carefully managed.
+                # A better way: load_plugin could return the instance or its actual name.
+                # For now, this will rely on the fact that load_plugin adds it.
 
+                # The check against enabled_plugin_names should ideally happen *before* full initialization
+                # or plugins not in the list should be explicitly unloaded if not desired.
+                # Current logic: loads all discoverable, then pipeline uses enabled_plugins list.
+                pass
+
+
+    def get_plugins_by_type(self, plugin_type: Type[PluginInterface]) -> List[PluginInterface]:
+        return [p for p in self.loaded_plugins.values() if isinstance(p, plugin_type)]
     async def cleanup_all_plugins(self) -> None:
-        """Cleanup all loaded plugins"""
-        for plugin_name, plugin in list(self.loaded_plugins.items()): # Iterate over a copy for safe removal
-            try:
-                await plugin.cleanup()
-                self.logger.info(f"Plugin {plugin_name} cleaned up.")
-            except Exception as e:
-                self.logger.error(
-                    f"Error cleaning up plugin {plugin.name}: {e}", exc_info=True)
-        self.loaded_plugins.clear()
+        for p_name in list(self.loaded_plugins.keys()): # Iterate over keys copy
+            plugin = self.loaded_plugins.pop(p_name) # Remove from dict
+            await plugin.cleanup()
+            self.logger.info(f"Cleaned up plugin: {plugin.name}")
 
 
 class EventBus:
-    """Simple event bus for plugin communication"""
-
-    def __init__(self):
-        self.listeners: Dict[str, List[Callable]] = {} # Changed from List[callable] to List[Callable] for typing
-        self.logger = logging.getLogger(f"{__name__}.EventBus")
-
-    def subscribe(self, event_type: str, callback: Callable) -> None: # Changed from callable to Callable
-        """Subscribe to an event type"""
-        if event_type not in self.listeners:
-            self.listeners[event_type] = []
-        self.listeners[event_type].append(callback)
-        self.logger.debug(f"Subscribed to {event_type}: {callback.__name__ if hasattr(callback, '__name__') else callback}")
-
-    def unsubscribe(self, event_type: str, callback: Callable) -> None: # Changed from callable to Callable
-        """Unsubscribe from an event type"""
-        if event_type in self.listeners:
+    def __init__(self): self.listeners: Dict[str, List[Callable]] = {}; self.logger = logging.getLogger(f"{__name__}.EventBus")
+    def subscribe(self, event_type: str, callback: Callable):
+        if event_type not in self.listeners: self.listeners[event_type] = []
+        if callback not in self.listeners[event_type]: self.listeners[event_type].append(callback)
+    def unsubscribe(self, event_type: str, callback: Callable):
+        if event_type in self.listeners and callback in self.listeners[event_type]: self.listeners[event_type].remove(callback)
+    async def publish(self, event_type: str, data: Any = None):
+        self.logger.debug(f"Publishing event: {event_type} with data: {str(data)[:100]}...")
+        for cb in self.listeners.get(event_type,[]):
             try:
-                self.listeners[event_type].remove(callback)
-                self.logger.debug(f"Unsubscribed from {event_type}: {callback.__name__ if hasattr(callback, '__name__') else callback}")
-            except ValueError:
-                self.logger.warning(f"Callback not found for event type {event_type} during unsubscribe.")
-
-
-    async def publish(self, event_type: str, data: Any = None) -> None:
-        """Publish an event to all subscribers"""
-        if event_type in self.listeners:
-            self.logger.debug(
-                f"Publishing {event_type} to {len(self.listeners[event_type])} listeners with data: {str(data)[:100]}...")
-            for callback in self.listeners[event_type]:
-                try:
-                    if asyncio.iscoroutinefunction(callback):
-                        await callback(data)
-                    else:
-                        # If GUI callback, ensure it's run in the main thread if needed
-                        # This might require a more sophisticated event bus or main thread executor
-                        callback(data)
-                except Exception as e:
-                    self.logger.error(f"Error in event callback for {event_type} ({callback.__name__ if hasattr(callback, '__name__') else callback}): {e}", exc_info=True)
+                if asyncio.iscoroutinefunction(cb): await cb(data)
+                else: cb(data)
+            except Exception as e: self.logger.error(f"EventBus callback error for {event_type}: {e}", exc_info=True)
 
 
 class LCASCore:
-    """Core LCAS application"""
+    def __init__(self, config: Optional[LCASConfig] = None, main_loop: Optional[asyncio.AbstractEventLoop] = None, project_root_dir: Optional[Path] = None):
+        self.project_root = project_root_dir if project_root_dir else Path(__file__).resolve().parent.parent.parent
+        self.config = config or self.load_config(self.project_root / "config" / "lcas_config.json")
 
-    def __init__(self, config: Optional[LCASConfig] = None, main_loop: Optional[asyncio.AbstractEventLoop] = None):
-        self.config = config or LCASConfig()
-        # Resolve plugins_directory relative to this file's location if it's relative
-        plugins_path = Path(self.config.plugins_directory)
-        if not plugins_path.is_absolute():
-            plugins_path = (Path(__file__).parent.parent / plugins_path).resolve()
+        # Resolve relative paths in config to be absolute
+        if not Path(self.config.plugins_directory).is_absolute():
+            self.config.plugins_directory = str((self.project_root / self.config.plugins_directory).resolve())
+        if self.config.target_directory and not Path(self.config.target_directory).is_absolute():
+            self.config.target_directory = str((self.project_root / self.config.target_directory).resolve())
+        if self.config.source_directory and not Path(self.config.source_directory).is_absolute():
+            self.config.source_directory = str((self.project_root / self.config.source_directory).resolve())
+        # ai_config_path is handled by lcas_ai_wrapper_plugin using similar project_root logic
 
-        self.plugin_manager = PluginManager(str(plugins_path))
+        self.logger = self._setup_logging() # Setup logging early
+        self.plugin_manager = PluginManager(self.config.plugins_directory, self) # Pass self
         self.event_bus = EventBus()
-        self.logger = self._setup_logging()
         self.running = False
         self.main_loop = main_loop or asyncio.get_event_loop()
-
-
-        # Core data storage
         self.analysis_results: Dict[str, Any] = {}
-        self.file_metadata: Dict[str, Any] = {} # Example: {filepath: {hash: "...", size: "..."}}
-        self.case_data: Dict[str, Any] = {}     # Example: {timeline_data: {...}, theories: [...]}
-
+        self.master_processed_files: Dict[str, FileAnalysisData] = {}
 
     def _setup_logging(self) -> logging.Logger:
-        """Setup logging configuration"""
-        # Ensure log directory exists (../logs relative to this core.py file)
-        log_dir = (Path(__file__).parent.parent / "logs").resolve()
+        log_level_str = getattr(self.config, 'log_level', 'INFO').upper()
+        numeric_log_level = getattr(logging, log_level_str, logging.INFO)
+
+        # Ensure log directory exists using project_root
+        log_dir = self.project_root / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
-
         core_log_file = log_dir / "lcas_core.log"
-        initial_log_file = log_dir / "lcas_initial.log" # This seems to be for initial config logging
 
-        # Update handlers to use absolute paths
-        # Remove existing handlers to avoid duplication if this method is called multiple times
-        root_logger = logging.getLogger()
-        for handler in root_logger.handlers[:]:
-            root_logger.removeHandler(handler)
-
-        # Add new handlers
-        logging.basicConfig(
-            level=getattr(logging, self.config.log_level.upper(), logging.INFO),
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler(core_log_file),
-                logging.StreamHandler(sys.stdout)
-            ]
-        )
-        # The 'lcas_initial.log' was in the global basicConfig. If specific, it needs its own handler.
-        # For simplicity, let's consolidate into lcas_core.log for now.
+        # Reconfigure root logger if necessary, or configure LCAS specific loggers
+        # Using force=True with basicConfig can affect other modules if not careful
+        # If multiple calls to basicConfig happen, subsequent ones might be ignored without force=True
+        logging.basicConfig(level=numeric_log_level,
+                            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                            handlers=[logging.FileHandler(core_log_file), logging.StreamHandler(sys.stdout)],
+                            force=True)
         return logging.getLogger(__name__)
 
     async def initialize(self) -> bool:
-        """Initialize the core application"""
-        try:
-            self.logger.info(f"Initializing LCAS Core Application with config: {self.config}")
-            self.logger.info(f"Plugin directory: {self.plugin_manager.plugins_directory.resolve()}")
+        self.logger.info(f"Initializing LCASCore. Project Root: {self.project_root}")
+        self.logger.info(f"Using Target Directory: {self.config.target_directory}")
+        if self.config.target_directory: Path(self.config.target_directory).mkdir(parents=True, exist_ok=True)
+        else: self.logger.warning("Target directory is not set! Some plugins might fail.");
 
-
-            # Create target directory if it doesn't exist
-            if self.config.target_directory:
-                Path(self.config.target_directory).mkdir(parents=True, exist_ok=True)
-            else:
-                self.logger.warning("Target directory is not set in configuration.")
-                # Optionally, set a default target directory here or raise an error
-                # For now, we'll allow it to be unset, but plugins might fail.
-
-            await self.plugin_manager.load_all_plugins(self)
-
-            await self.event_bus.publish("core.initialized", {"config": self.config})
-            self.running = True
-            self.logger.info("LCAS Core Application initialized successfully")
-            return True
-
-        except Exception as e:
-            self.logger.error(f"Failed to initialize LCAS Core: {e}", exc_info=True)
-            return False
+        await self.plugin_manager.load_all_plugins(self.config.enabled_plugins or []) # Pass enabled plugin names
+        await self.event_bus.publish("core.initialized", {"config": asdict(self.config)}); self.running = True; return True
 
     async def shutdown(self) -> None:
-        """Shutdown the application gracefully"""
-        self.logger.info("Shutting down LCAS Core Application")
-        await self.event_bus.publish("core.shutdown")
+        await self.event_bus.publish("core.shutdown_started")
         await self.plugin_manager.cleanup_all_plugins()
         self.running = False
-        self.logger.info("LCAS Core Application shutdown complete")
+        self.logger.info("LCASCore shutdown complete.")
+        await self.event_bus.publish("core.shutdown_completed")
 
-    # --- Core Analysis Orchestration Methods ---
 
     async def run_file_preservation(self, progress_callback: Optional[Callable] = None) -> Dict[str, Any]:
-        """Runs the file ingestion/preservation plugin."""
-        self.logger.info("Starting file preservation task...")
-        await self.event_bus.publish("core.preservation_started")
-
-        preservation_plugin_name = "file_ingestion_plugin"
-        results = {}
-
-        plugin = self.plugin_manager.loaded_plugins.get(preservation_plugin_name)
-        if plugin and isinstance(plugin, AnalysisPlugin):
+        self.logger.info("Starting file preservation process...")
+        plugin = self.plugin_manager.loaded_plugins.get(self.config.file_ingestion_plugin_name)
+        if plugin and isinstance(plugin, AnalysisPlugin) and plugin.name in self.config.enabled_plugins:
             try:
-                await self.event_bus.publish("core.plugin_execution_started", {"plugin_name": plugin.name})
-                if progress_callback: self.main_loop.call_soon_threadsafe(progress_callback, plugin.name, "started", 0)
-
-                result = await plugin.analyze({
+                ingestion_input = {
                     "source_directory": self.config.source_directory,
                     "target_directory": self.config.target_directory,
                     "case_name": self.config.case_name,
-                    "config": self.config # Pass full config
-                })
-                results[plugin.name] = result
+                    "config_options": {"copy_files": True, "verify_hashes": True}
+                }
+                result = await plugin.analyze(ingestion_input)
                 self.set_analysis_result(plugin.name, result)
 
-                if progress_callback: self.main_loop.call_soon_threadsafe(progress_callback, plugin.name, "completed", 100)
-                await self.event_bus.publish("core.plugin_execution_completed", {"plugin_name": plugin.name, "result": result})
-                self.logger.info(f"Plugin {plugin.name} completed successfully: {str(result)[:100]}")
-
+                if result.get("success") and isinstance(result.get("files_details"), list):
+                    for item_detail_dict in result.get("files_details", []):
+                        if isinstance(item_detail_dict, dict) and item_detail_dict.get("original_path"):
+                            # Assuming item_detail_dict structure matches FileIngestionDetail fields
+                            fad = FileAnalysisData(file_path=item_detail_dict["original_path"])
+                            fad.ingestion_details = item_detail_dict # This should ideally be FileIngestionDetail(**item_detail_dict)
+                            fad.size_bytes = item_detail_dict.get("size")
+                            if not fad.file_name: fad.file_name = Path(fad.file_path).name
+                            self.master_processed_files[fad.file_path] = fad
+                    self.logger.info(f"File preservation successful. {len(result.get('files_details',[]))} files processed into master_processed_files.")
+                elif not result.get("success"): self.logger.error(f"File Ingestion plugin reported failure: {result.get('error', 'Unknown error')}")
+                else: self.logger.warning("File Ingestion plugin result format unexpected or no files_details.")
+                return result
             except Exception as e:
-                self.logger.error(f"Error running plugin {plugin.name}: {e}", exc_info=True)
-                results[plugin.name] = {"error": str(e), "success": False}
-                if progress_callback: self.main_loop.call_soon_threadsafe(progress_callback, plugin.name, "error", 100)
-                await self.event_bus.publish("core.error_occurred", {"error_message": str(e), "plugin_name": plugin.name})
+                self.logger.error(f"Error running File Ingestion plugin: {e}", exc_info=True)
+                return {"error": f"File Ingestion plugin execution error: {e}", "success": False}
         else:
-            self.logger.warning(f"Preservation plugin '{preservation_plugin_name}' not found or not an AnalysisPlugin.")
-            results[preservation_plugin_name] = {"error": "Plugin not found", "success": False}
-            if progress_callback: self.main_loop.call_soon_threadsafe(progress_callback, preservation_plugin_name, "error", 0)
-            await self.event_bus.publish("core.error_occurred", {"error_message": "Preservation plugin not found", "plugin_name": preservation_plugin_name})
+            self.logger.warning(f"File Ingestion plugin '{self.config.file_ingestion_plugin_name}' not found, not AnalysisPlugin, or not enabled.")
+            return {"error": "File Ingestion plugin not available/enabled.", "success": False}
 
-        await self.event_bus.publish("core.preservation_completed", results)
-        self.logger.info("File preservation task finished.")
-        return results
 
     async def run_full_analysis(self, progress_callback: Optional[Callable] = None) -> Dict[str, Any]:
-        """Runs the full analysis pipeline using enabled AnalysisPlugins."""
-        self.logger.info("Starting full analysis...")
+        self.logger.info("Starting full analysis pipeline...")
         await self.event_bus.publish("core.analysis_started", {"type": "full"})
 
-        # Exclude file_ingestion_plugin from general analysis if it's run separately
-        analysis_plugins = [
-            p for p in self.get_analysis_plugins()
-            if p.name != "File Ingestion" and p.name in (self.config.enabled_plugins or [])
-        ]
+        if not self.master_processed_files and self.config.source_directory:
+            self.logger.info("Master processed files is empty. Attempting to populate from source directory for analysis.")
+            source_path = Path(self.config.source_directory)
+            if source_path.is_dir():
+                 for p_file in source_path.rglob("*"):
+                     if p_file.is_file() and str(p_file) not in self.master_processed_files:
+                         self.master_processed_files[str(p_file)] = FileAnalysisData(file_path=str(p_file))
+                 self.logger.info(f"Populated master_processed_files with {len(self.master_processed_files)} files from source_directory.")
+            else:
+                 self.logger.error(f"Source directory {source_path} not found for initial file scan. Cannot proceed with analysis.")
+                 return {"error": "Source directory for scan not found", "success": False}
+        elif not self.master_processed_files:
+            self.logger.error("Master processed files is empty and no source directory provided. Cannot proceed.")
+            return {"error": "No files to analyze.", "success": False}
 
-        if not analysis_plugins:
-            self.logger.warning("No analysis plugins (excluding ingestion) enabled or loaded for full analysis.")
-            await self.event_bus.publish("core.analysis_completed", {"results": {}, "message": "No analysis plugins"})
-            return {"message": "No analysis plugins enabled or loaded for full analysis."}
 
-        overall_results = {}
-        total_plugins_to_run = len(analysis_plugins)
+        pipeline_plugins_names = self.config.pipeline_plugin_order
+        total_plugins_in_pipeline = len(pipeline_plugins_names)
 
-        for i, plugin in enumerate(analysis_plugins):
-            self.logger.info(f"Executing plugin {i+1}/{total_plugins_to_run}: {plugin.name}")
-            await self.event_bus.publish("core.plugin_execution_started", {"plugin_name": plugin.name, "step": i+1, "total_steps": total_plugins_to_run})
+        for i, plugin_name_from_config in enumerate(pipeline_plugins_names):
+            plugin: Optional[AnalysisPlugin] = None # Ensure type hint for plugin
+            # Find the loaded plugin by its actual name (property), which should match plugin_name_from_config
+            loaded_plugin_instance = self.plugin_manager.loaded_plugins.get(plugin_name_from_config)
+            if isinstance(loaded_plugin_instance, AnalysisPlugin):
+                plugin = loaded_plugin_instance
 
-            current_progress_percent = int(((i) / total_plugins_to_run) * 100)
-            if progress_callback:
-                 self.main_loop.call_soon_threadsafe(progress_callback, plugin.name, "started", current_progress_percent)
+            if not plugin or plugin.name not in self.config.enabled_plugins:
+                self.logger.warning(f"Skipping plugin '{plugin_name_from_config}' (not loaded as AnalysisPlugin, or not in enabled_plugins list).")
+                continue
 
+            self.logger.info(f"Pipeline Step {i+1}/{total_plugins_in_pipeline}: Executing plugin {plugin.name}")
+            await self.event_bus.publish("core.plugin_execution_started", {"plugin_name": plugin.name, "step": i+1, "total_steps": total_plugins_in_pipeline})
+            if progress_callback: self.main_loop.call_soon_threadsafe(progress_callback, plugin.name, "started", int((i / total_plugins_in_pipeline) * 100))
 
             try:
                 plugin_input_data = {
                     "source_directory": self.config.source_directory,
                     "target_directory": self.config.target_directory,
                     "case_name": self.config.case_name,
-                    "current_results": dict(overall_results), # Pass a copy
                     "config": self.config,
-                    "ai_config_path": (Path(__file__).parent.parent.parent / self.config.ai_config_path).resolve()
+                    "processed_files": self.master_processed_files,
+                    "file_category_mapping": self.analysis_results.get(self.config.evidence_categorization_plugin_name, {}).get("result", {}).get("file_category_mapping"),
+                    "potential_theories": self.analysis_results.get(self.config.pattern_discovery_plugin_name, {}).get("result", {}).get("theories")
                 }
 
-                result = await plugin.analyze(plugin_input_data)
-                overall_results[plugin.name] = result
-                self.set_analysis_result(plugin.name, result)
+                raw_plugin_result = await plugin.analyze(plugin_input_data)
+                self.set_analysis_result(plugin.name, raw_plugin_result)
 
-                completed_progress_percent = int(((i + 1) / total_plugins_to_run) * 100)
-                if progress_callback:
-                    self.main_loop.call_soon_threadsafe(progress_callback, plugin.name, "completed", completed_progress_percent)
+                if isinstance(raw_plugin_result, dict) and raw_plugin_result.get("success"):
+                    returned_processed_files = raw_plugin_result.get("processed_files_output")
 
-                await self.event_bus.publish("core.plugin_execution_completed", {"plugin_name": plugin.name, "result": result, "step": i+1, "total_steps": total_plugins_to_run})
-                self.logger.info(f"Plugin {plugin.name} completed: {str(result)[:100]}")
+                    if isinstance(returned_processed_files, dict):
+                        self.logger.debug(f"Plugin {plugin.name} returned 'processed_files_output'. Updating master list.")
+                        for fp_str, fad_dict_or_obj in returned_processed_files.items():
+                            if not isinstance(fad_dict_or_obj, dict) and not isinstance(fad_dict_or_obj, FileAnalysisData):
+                                self.logger.warning(f"Plugin {plugin.name} returned invalid item type in processed_files_output for {fp_str}. Skipping.")
+                                continue
 
+                            current_fad = self.master_processed_files.get(fp_str)
+                            if not current_fad:
+                                try:
+                                    self.master_processed_files[fp_str] = FileAnalysisData(**fad_dict_or_obj) if isinstance(fad_dict_or_obj, dict) else fad_dict_or_obj
+                                except Exception as e_create: self.logger.error(f"Error creating new FAD for {fp_str} from {plugin.name}: {e_create}")
+                                continue
+
+                            if isinstance(fad_dict_or_obj, dict):
+                                for key, value in fad_dict_or_obj.items():
+                                    if hasattr(current_fad, key):
+                                        setattr(current_fad, key, value)
+                            elif isinstance(fad_dict_or_obj, FileAnalysisData) and fad_dict_or_obj is not current_fad:
+                                 self.master_processed_files[fp_str] = fad_dict_or_obj
+
+                if progress_callback: self.main_loop.call_soon_threadsafe(progress_callback, plugin.name, "completed", int(((i + 1) / total_plugins_in_pipeline) * 100))
+                await self.event_bus.publish("core.plugin_execution_completed", {"plugin_name": plugin.name, "result": raw_plugin_result, "step": i+1, "total_steps": total_plugins_in_pipeline})
             except Exception as e:
-                self.logger.error(f"Error running plugin {plugin.name}: {e}", exc_info=True)
-                overall_results[plugin.name] = {"error": str(e), "success": False}
-                error_progress_percent = int(((i + 1) / total_plugins_to_run) * 100)
-                if progress_callback:
-                    self.main_loop.call_soon_threadsafe(progress_callback, plugin.name, "error", error_progress_percent)
+                self.logger.error(f"Error running plugin {plugin.name} in pipeline: {e}", exc_info=True)
+                self.set_analysis_result(plugin.name, {"error": str(e), "success": False, "plugin_name": plugin.name})
+                if progress_callback: self.main_loop.call_soon_threadsafe(progress_callback, plugin.name, "error", int(((i + 1) / total_plugins_in_pipeline) * 100))
                 await self.event_bus.publish("core.error_occurred", {"error_message": str(e), "plugin_name": plugin.name})
 
-        await self.event_bus.publish("core.analysis_completed", {"results": overall_results, "type": "full"})
-        self.logger.info("Full analysis finished.")
-        return overall_results
+        final_master_output = {fp: asdict(fad) for fp, fad in self.master_processed_files.items()}
+        self.set_analysis_result("MasterFileAnalysisData", {"result": final_master_output, "success":True, "status":"completed"})
 
-    # --- End of Core Analysis Orchestration Methods ---
+        await self.event_bus.publish("core.analysis_completed", {"results": self.analysis_results, "type": "full"})
+        self.logger.info("Full analysis pipeline finished.")
+        return self.analysis_results
 
-    # Data Management
-    def set_case_data(self, key: str, value: Any) -> None:
-        """Set case data"""
-        self.case_data[key] = value
-        asyncio.create_task( # Ensure this runs on the main_loop if created from different thread
-            self.event_bus.publish(
-                "case.data_updated", {
-                    "key": key, "value": value}))
-
-    def get_case_data(self, key: str, default: Any = None) -> Any:
-        """Get case data"""
-        return self.case_data.get(key, default)
-
-    def set_analysis_result(self, plugin_name: str, result: Any) -> None:
-        """Set analysis result from a plugin"""
-        self.analysis_results[plugin_name] = {
-            "result": result,
-            "timestamp": datetime.now().isoformat(),
-            "plugin": plugin_name
-        }
-        # Run publish in the main event loop if called from a thread
-        async def _publish():
-            await self.event_bus.publish("analysis.completed", {
-                "plugin": plugin_name,
-                "result": result
-            })
-        asyncio.run_coroutine_threadsafe(_publish(), self.main_loop)
-
+    def set_analysis_result(self, plugin_name: str, result: Any):
+        wrapped_result = {"result": result, "timestamp": datetime.now().isoformat(), "plugin_name": plugin_name}
+        self.analysis_results[plugin_name] = wrapped_result
+        asyncio.create_task(self.event_bus.publish("core.plugin_result_updated", wrapped_result))
 
     def get_analysis_result(self, plugin_name: str) -> Optional[Any]:
-        """Get analysis result from a plugin"""
-        result_data = self.analysis_results.get(plugin_name)
-        return result_data["result"] if result_data else None
+        return self.analysis_results.get(plugin_name)
 
-    # Plugin Interface Methods
-    def get_analysis_plugins(self) -> List[AnalysisPlugin]:
-        """Get all loaded analysis plugins"""
-        return self.plugin_manager.get_plugins_by_type(AnalysisPlugin)
+    def get_analysis_plugins(self) -> List[AnalysisPlugin]: return self.plugin_manager.get_plugins_by_type(AnalysisPlugin) #type: ignore
+    def get_ui_plugins(self) -> List[UIPlugin]: return self.plugin_manager.get_plugins_by_type(UIPlugin) #type: ignore
+    def get_export_plugins(self) -> List[ExportPlugin]: return self.plugin_manager.get_plugins_by_type(ExportPlugin) #type: ignore
 
-    def get_ui_plugins(self) -> List[UIPlugin]:
-        """Get all loaded UI plugins"""
-        return self.plugin_manager.get_plugins_by_type(UIPlugin)
-
-    def get_export_plugins(self) -> List[ExportPlugin]:
-        """Get all loaded export plugins"""
-        return self.plugin_manager.get_plugins_by_type(ExportPlugin)
-
-    # Configuration Management
     def save_config(self, config_path: Optional[str] = None) -> bool:
-        """Save current configuration.
-        If config_path is None, uses path from self.config.ai_config_path (incorrect for main config)
-        or a default. Should be project root relative for main config.
-        """
-        path_to_save = None
-        if config_path:
-            path_to_save = Path(config_path)
-        else:
-            # Default to saving lcas_config.json in LCAS_2/config/
-            path_to_save = (Path(__file__).parent.parent.parent / "config" / "lcas_config.json").resolve()
-
-        path_to_save.parent.mkdir(parents=True, exist_ok=True) # Ensure directory exists
-
+        path_to_save_str = config_path if config_path else "config/lcas_config.json"
+        path_to_save = self.project_root / path_to_save_str
         try:
-            config_dict = asdict(self.config)
-            # Ensure CaseTheoryConfig is also serializable if it's complex
-            if isinstance(self.config.case_theory, CaseTheoryConfig):
-                 config_dict['case_theory'] = asdict(self.config.case_theory)
+            path_to_save.parent.mkdir(parents=True, exist_ok=True)
+            # Ensure case_theory is properly converted to dict for asdict to work on LCASConfig
+            config_data_to_save = asdict(self.config)
+            # if isinstance(self.config.case_theory, CaseTheoryConfig): # Not needed if CaseTheoryConfig is already a dataclass
+            #    config_data_to_save['case_theory'] = asdict(self.config.case_theory)
 
-            with open(path_to_save, 'w') as f:
-                json.dump(config_dict, f, indent=2)
-            self.logger.info(f"Configuration saved to {path_to_save}")
+            with open(path_to_save, 'w') as f: json.dump(config_data_to_save, f, indent=2)
+            self.logger.info(f"Configuration saved to {path_to_save.resolve()}")
             return True
-        except Exception as e:
-            self.logger.error(f"Failed to save configuration to {path_to_save}: {e}", exc_info=True)
-            return False
+        except Exception as e: self.logger.error(f"Error saving config to {path_to_save.resolve()}: {e}", exc_info=True); return False
 
     @classmethod
-    def load_config(cls, config_path: Optional[str] = None) -> 'LCASConfig': # Return LCASConfig, not LCASCore
-        """Load configuration. Returns an LCASConfig instance.
-        If config_path is None, uses a default path.
-        Should be project root relative for main config.
-        """
-        path_to_load = None
-        if config_path:
-            path_to_load = Path(config_path)
-        else:
-            # Default to loading lcas_config.json from LCAS_2/config/
-            path_to_load = (Path(__file__).parent.parent.parent / "config" / "lcas_config.json").resolve()
+    def load_config(cls, config_path_abs: Optional[Path] = None) -> 'LCASConfig':
+        path_to_load = config_path_abs
+        if not path_to_load:
+             project_r = Path(__file__).resolve().parent.parent.parent
+             path_to_load = (project_r / "config" / "lcas_config.json").resolve()
 
-        try:
-            if path_to_load.exists():
-                with open(path_to_load, 'r') as f:
-                    config_data = json.load(f)
-
-                # Handle nested CaseTheoryConfig
+        if path_to_load.exists():
+            try:
+                with open(path_to_load, 'r') as f: config_data = json.load(f)
                 case_theory_data = config_data.get('case_theory')
                 if isinstance(case_theory_data, dict):
                     config_data['case_theory'] = CaseTheoryConfig(**case_theory_data)
+                elif case_theory_data is None : # Handle if case_theory is missing from JSON
+                    config_data['case_theory'] = CaseTheoryConfig()
 
                 return LCASConfig(**config_data)
-            else:
-                logger.info(f"Configuration file not found at {path_to_load}. Using default LCASConfig.")
-                return LCASConfig()
-        except Exception as e:
-            logger.error(f"Failed to load configuration from {path_to_load}: {e}. Using default LCASConfig.", exc_info=True)
-            return LCASConfig()
+            except Exception as e: logger.error(f"Error loading config from {path_to_load}: {e}. Using default.", exc_info=True)
+        return LCASConfig()
 
     @classmethod
-    def create_with_config(cls, config_path: Optional[str] = None, main_loop: Optional[asyncio.AbstractEventLoop] = None) -> 'LCASCore':
-        """Class method to create an LCASCore instance with loaded configuration."""
-        config_instance = cls.load_config(config_path)
-        return cls(config=config_instance, main_loop=main_loop)
+    def create_with_config(cls, config_path_str: Optional[str] = None, main_loop: Optional[asyncio.AbstractEventLoop] = None, project_root_dir: Optional[Path] = None) -> 'LCASCore':
+        proj_root = project_root_dir if project_root_dir else Path(__file__).resolve().parent.parent.parent
+
+        abs_config_path_to_load : Optional[Path] = None
+        if config_path_str:
+            config_p = Path(config_path_str)
+            if config_p.is_absolute(): abs_config_path_to_load = config_p
+            else: abs_config_path_to_load = (proj_root / config_path_str).resolve()
+
+        config_instance = cls.load_config(abs_config_path_to_load)
+        return cls(config=config_instance, main_loop=main_loop, project_root_dir=proj_root)

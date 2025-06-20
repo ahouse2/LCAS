@@ -1,255 +1,262 @@
 #!/usr/bin/env python3
 """
 Evidence Categorization Plugin for LCAS
-Categorizes evidence files into legal argument folders based on a provided scheme.
+Determines category for evidence files based on content, AI tags, and a provided scheme.
+Updates FileAnalysisData instances and outputs a mapping.
 """
 
 import tkinter as tk
 from tkinter import ttk
-import shutil
+# import shutil # No longer used
 import asyncio
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime
+import re
+from dataclasses import asdict # For converting FAD to dict for output
 
-from lcas2.core import AnalysisPlugin, UIPlugin
-
+from lcas2.core import AnalysisPlugin, UIPlugin, LCASCore
+from lcas2.core.data_models import FileAnalysisData # Import FileAnalysisData
 
 class EvidenceCategorizationPlugin(AnalysisPlugin, UIPlugin):
-    """Plugin for categorizing evidence files based on a dynamic scheme."""
+    """Plugin for determining file categories based on content, AI suggestions, and a dynamic scheme."""
 
     @property
-    def name(self) -> str:
-        return "Evidence Categorization"
-
+    def name(self) -> str: return "Evidence Categorization"
     @property
-    def version(self) -> str:
-        return "1.1.0" # Version updated
-
+    def version(self) -> str: return "1.3.1" # Version updated
     @property
-    def description(self) -> str:
-        return "Categorizes evidence files into folders based on a provided scheme (e.g., keywords in filenames)."
-
+    def description(self) -> str: return "Categorizes files using AI tags, content/filename keywords from FileAnalysisData, updates FAD instances, and outputs mapping."
     @property
-    def dependencies(self) -> List[str]:
-        # This plugin might later depend on AI analysis results for smarter categorization.
-        return [] # For now, filename-based, so no explicit dependencies on other plugin *results*.
+    def dependencies(self) -> List[str]: return ["lcas_ai_wrapper_plugin", "Content Extraction", "Image Analysis"] # Needs comprehensive FAD
 
-    async def initialize(self, core_app) -> bool:
+    async def initialize(self, core_app: LCASCore) -> bool:
         self.core = core_app
         self.logger = core_app.logger.getChild(self.name)
-        self.current_categorization_scheme: Dict[str, List[str]] = {} # Store the last used scheme for UI
-        self.logger.info("EvidenceCategorizationPlugin initialized.")
+        self.current_categorization_scheme: Dict[str, Dict[str, Any]] = {}
+        self.logger.info(f"{self.name} initialized.")
         return True
 
-    async def cleanup(self) -> None:
-        self.logger.info("EvidenceCategorizationPlugin cleaned up.")
-        pass
+    async def cleanup(self) -> None: self.logger.info(f"{self.name} cleaned up.")
+
+    def _text_contains_keywords(self, text: Optional[str], keywords: List[str]) -> bool:
+        if not text or not keywords: return False
+        text_lower = text.lower()
+        # Ensure keywords are strings
+        return any(re.search(r'\b' + re.escape(str(kw).lower()) + r'\b', text_lower) for kw in keywords if isinstance(kw, str))
+
 
     async def analyze(self, data: Any) -> Dict[str, Any]:
-        """Categorize files into appropriate folders based on the provided scheme."""
-        source_dir_str = data.get("source_directory", "")
-        target_dir_str = data.get("target_directory", "")
+        processed_files_input_any: Any = data.get("processed_files", {})
+        if not isinstance(processed_files_input_any, dict):
+            self.logger.error(f"Expected 'processed_files' to be a Dict, got {type(processed_files_input_any)}.")
+            return {"plugin": self.name, "status": "error", "success": False, "message": "Invalid 'processed_files' format."}
+        processed_files_input: Dict[str, Any] = processed_files_input_any # Now known to be a dict
 
-        # categorization_scheme is expected to be Dict[str, List[str]]
-        # e.g., {"FRAUD_DOCS": ["fraud", "deceit"], "FINANCIALS": ["bank_statement", "tax"]}
-        categorization_scheme = data.get("categorization_scheme", {})
-        self.current_categorization_scheme = categorization_scheme # Save for UI
+        categorization_scheme: Dict[str, Dict[str, Any]] = data.get("categorization_scheme", {})
+        self.current_categorization_scheme = categorization_scheme
 
-        # Get a list of files to process. This could be all files in source_dir,
-        # or a pre-filtered list from a previous plugin (e.g., file_ingestion_plugin results)
-        # For now, assume it scans source_dir like before.
-        # Future: data could contain 'file_list_to_process': [{'path': '/path/to/file1.pdf', 'name': 'file1.pdf'}, ...]
-
-        if not source_dir_str:
-            return {"error": "Source directory not provided", "success": False, "categorized_files": {}, "uncategorized_files": []}
-        if not target_dir_str:
-            return {"error": "Target directory not provided", "success": False, "categorized_files": {}, "uncategorized_files": []}
+        if not processed_files_input:
+            return {"plugin": self.name, "status": "no_data", "success": False, "message": "No 'processed_files' (FileAnalysisData) provided."}
         if not categorization_scheme:
-            self.logger.warning("No categorization scheme provided. All files will be marked for human review.")
-            # Proceed, but all files will go to FOR_HUMAN_REVIEW
+            self.logger.warning("No categorization scheme. Files will be mapped to FOR_HUMAN_REVIEW.")
+            # Provide a minimal default scheme if none is given
+            categorization_scheme = {"FOR_HUMAN_REVIEW": {"priority": 1000, "description": "Files needing manual categorization"}}
 
-        source_dir = Path(source_dir_str)
-        target_dir = Path(target_dir_str)
+        file_to_category_mapping: Dict[str, Dict[str, str]] = {}
+        files_processed_count = 0; categorized_count = 0; human_review_count = 0
 
-        if not source_dir.exists() or not source_dir.is_dir():
-            return {"error": f"Source directory not found: {source_dir}", "success": False, "categorized_files": {}, "uncategorized_files": []}
+        output_fad_dict: Dict[str, FileAnalysisData] = {} # To store FAD instances for output
 
-        categorized_files_report: Dict[str, List[str]] = {}
-        uncategorized_files_report: List[str] = []
+        sorted_categories = sorted(categorization_scheme.items(), key=lambda item: item[1].get("priority", 99))
 
-        # Create folder structure based on the provided scheme
-        for folder_name in categorization_scheme.keys():
-            try:
-                folder_path = target_dir / folder_name
-                folder_path.mkdir(parents=True, exist_ok=True)
-                categorized_files_report[folder_name] = []
-            except Exception as e:
-                self.logger.error(f"Could not create category folder {target_dir / folder_name}: {e}", exc_info=True)
-                # Potentially skip this category or return an error for the whole process
+        for original_file_path_str, fad_object_or_dict in processed_files_input.items():
+            files_processed_count += 1
+            fad_instance: Optional[FileAnalysisData] = None
+            if isinstance(fad_object_or_dict, FileAnalysisData):
+                fad_instance = fad_object_or_dict
+            elif isinstance(fad_object_or_dict, dict):
+                try:
+                    fad_instance = FileAnalysisData(**fad_object_or_dict)
+                except TypeError as te:
+                    self.logger.warning(f"Could not cast dict to FAD for {original_file_path_str}: {te}")
+                    fad_instance = FileAnalysisData(file_path=original_file_path_str, file_name=Path(original_file_path_str).name)
+                    fad_instance.error_log.append(f"Failed to cast input dict to FileAnalysisData: {te}")
 
-        review_folder = target_dir / "FOR_HUMAN_REVIEW"
-        try:
-            review_folder.mkdir(parents=True, exist_ok=True)
-        except Exception as e:
-            self.logger.error(f"Could not create FOR_HUMAN_REVIEW folder {review_folder}: {e}", exc_info=True)
-            # This is a critical folder, might need to error out if it fails
-            return {"error": f"Failed to create review folder: {e}", "success": False, "categorized_files": {}, "uncategorized_files": []}
+            if not fad_instance: # If still None after attempts
+                file_to_category_mapping[original_file_path_str] = {"category_folder_name": "FOR_HUMAN_REVIEW", "reason": "Invalid file_data format", "original_filename": Path(original_file_path_str).name}
+                human_review_count += 1; continue
 
-        files_processed_count = 0
-        for file_path in source_dir.rglob("*"): # Consider using a passed file list in future
-            if file_path.is_file():
-                files_processed_count += 1
-                filename_lower = file_path.name.lower()
-                was_categorized = False
+            output_fad_dict[original_file_path_str] = fad_instance # Add to output dict for return
 
-                # Use the dynamic categorization_scheme
-                for folder_name, keywords in categorization_scheme.items():
-                    if not keywords: continue # Skip if a category has no keywords
+            file_name_lower = fad_instance.file_name.lower() if fad_instance.file_name else ""
 
-                    # Current matching logic: filename based.
-                    # TODO (Phase 2): Enhance to use file content/summary/AI tags if available in `data` for each file.
-                    if any(keyword.lower() in filename_lower for keyword in keywords):
-                        dest_folder = target_dir / folder_name
-                        target_file_path = dest_folder / file_path.name
+            texts_to_search = [fad_instance.content, fad_instance.summary_auto, fad_instance.ai_summary, fad_instance.ocr_text_from_images]
+            searchable_text = "\n".join(t for t in texts_to_search if t)
 
-                        counter = 1
-                        stem, suffix = file_path.stem, file_path.suffix
-                        while target_file_path.exists(): # Handle name conflicts
-                            target_file_path = dest_folder / f"{stem}_{counter}{suffix}"
-                            counter += 1
+            all_ai_tags_for_file = set(t.lower() for t in (fad_instance.ai_tags or []))
+            if fad_instance.ai_suggested_category: all_ai_tags_for_file.add(fad_instance.ai_suggested_category.lower())
 
-                        try:
-                            shutil.copy2(file_path, target_file_path)
-                            categorized_files_report[folder_name].append(str(target_file_path))
-                            self.logger.info(f"Categorized '{file_path.name}' into '{folder_name}'")
-                            was_categorized = True
-                            break # Move to next file once categorized
-                        except Exception as e:
-                            self.logger.error(f"Could not copy {file_path.name} to {target_file_path}: {e}", exc_info=True)
-                            # Decide: add to uncategorized or mark as error? For now, let it fall to uncategorized if copy fails.
+            assigned_category_name: Optional[str] = None
+            categorization_reason = "No matching criteria"
 
-                if not was_categorized:
-                    target_file_path = review_folder / file_path.name
-                    counter = 1
-                    stem, suffix = file_path.stem, file_path.suffix
-                    while target_file_path.exists():
-                        target_file_path = review_folder / f"{stem}_{counter}{suffix}"
-                        counter += 1
+            for folder_name_key, criteria in sorted_categories:
+                if not isinstance(criteria, dict): continue
+                current_category_target_name = folder_name_key
 
-                    try:
-                        shutil.copy2(file_path, target_file_path)
-                        uncategorized_files_report.append(str(target_file_path))
-                        self.logger.info(f"Moved '{file_path.name}' to FOR_HUMAN_REVIEW")
-                    except Exception as e:
-                        self.logger.error(f"Could not copy {file_path.name} to review folder {target_file_path}: {e}", exc_info=True)
-                        uncategorized_files_report.append(f"ERROR_COPYING: {file_path.name} - {e}")
+                ai_tags_to_match = [str(t).lower() for t in criteria.get("ai_tags", []) if isinstance(t, str)]
+                if ai_tags_to_match and any(tag in all_ai_tags_for_file for tag in ai_tags_to_match):
+                    assigned_category_name = current_category_target_name
+                    categorization_reason = f"Matched AI tag(s): {', '.join(t for t in ai_tags_to_match if t in all_ai_tags_for_file)}"
+                    break
 
+                content_keywords_to_match = criteria.get("content_keywords", [])
+                if content_keywords_to_match and self._text_contains_keywords(searchable_text, content_keywords_to_match):
+                    assigned_category_name = current_category_target_name
+                    matched_kws = [kw for kw in content_keywords_to_match if isinstance(kw, str) and re.search(r'\b' + re.escape(kw.lower()) + r'\b', searchable_text.lower())]
+                    categorization_reason = f"Matched content keyword(s): {', '.join(matched_kws)}"
+                    break
 
-        total_categorized_count = sum(len(files) for files in categorized_files_report.values())
-        self.logger.info(f"Categorization complete. Processed: {files_processed_count}, Categorized: {total_categorized_count}, Uncategorized: {len(uncategorized_files_report)}.")
+                filename_keywords_to_match = criteria.get("filename_keywords", [])
+                if filename_keywords_to_match and any(str(kw).lower() in file_name_lower for kw in filename_keywords_to_match if isinstance(kw,str)):
+                    assigned_category_name = current_category_target_name
+                    matched_kws = [kw for kw in filename_keywords_to_match if isinstance(kw,str) and kw.lower() in file_name_lower]
+                    categorization_reason = f"Matched filename keyword(s): {', '.join(matched_kws)}"
+                    break
 
+            final_category_folder_name = assigned_category_name if assigned_category_name else "FOR_HUMAN_REVIEW"
+            if assigned_category_name: categorized_count +=1
+            else: human_review_count +=1; categorization_reason = "Sent to human review (no criteria matched)"
+
+            fad_instance.assigned_category_folder_name = final_category_folder_name
+            fad_instance.categorization_reason = categorization_reason
+
+            file_to_category_mapping[original_file_path_str] = {
+                "category_folder_name": final_category_folder_name,
+                "reason": categorization_reason,
+                "original_filename": fad_instance.file_name if fad_instance.file_name else Path(original_file_path_str).name
+            }
+            self.logger.info(f"File '{fad_instance.file_name}': Mapped to category '{final_category_folder_name}'. Reason: {categorization_reason}")
+
+        self.logger.info(f"Categorization mapping complete. Processed: {files_processed_count}, Mapped: {categorized_count}, Review: {human_review_count}.")
         return {
-            "plugin": self.name,
-            "status": "completed",
-            "success": True, # Assuming process completes, even if some files are uncategorized or had copy errors logged within lists
-            "summary": {
-                "files_processed": files_processed_count,
-                "files_categorized": total_categorized_count,
-                "files_for_human_review": len(uncategorized_files_report),
-                "categories_used": list(categorization_scheme.keys())
-            },
-            "categorized_files_map": categorized_files_report, # folder_name -> list_of_target_paths
-            "uncategorized_file_paths": uncategorized_files_report # list_of_target_paths
+            "plugin": self.name, "status": "completed", "success": True,
+            "summary": {"files_processed": files_processed_count, "files_categorized_mapped": categorized_count, "files_for_human_review_mapped": human_review_count, "categories_in_scheme": list(categorization_scheme.keys()) },
+            "file_category_mapping": file_to_category_mapping,
+            "processed_files_output": {k:asdict(v) for k,v in output_fad_dict.items()}
         }
 
     def create_ui_elements(self, parent_widget) -> List[tk.Widget]:
+        try:
+            import tkinter as tk
+            from tkinter import ttk
+            from tkinter import simpledialog, messagebox # Moved imports here for show_categories
+        except ImportError:
+            self.logger.warning("Tkinter not available, UI elements cannot be created.")
+            return []
+
         elements = []
         frame = ttk.Frame(parent_widget)
         frame.pack(fill=tk.X, padx=5, pady=2)
 
-        ttk.Button(frame, text="📁 Categorize Files (using current config)",
-                   command=self.run_analysis_ui).pack(side=tk.LEFT, padx=2)
-        ttk.Button(frame, text="📋 View Current Categories",
-                   command=self.show_categories).pack(side=tk.LEFT, padx=2)
+        ttk.Button(frame, text="📁 Determine Categories (uses current FADs)", command=self.run_analysis_ui).pack(side=tk.LEFT, padx=2)
+        ttk.Button(frame, text="📋 View Scheme", command=self.show_categories).pack(side=tk.LEFT, padx=2)
 
-        self.status_label = ttk.Label(frame, text="Evidence Categorization Plugin Ready.")
+        self.status_label = ttk.Label(frame, text="Ready.")
         self.status_label.pack(side=tk.LEFT, padx=10)
-        elements.extend([frame, self.status_label])
+        elements.append(frame)
         return elements
 
     def show_categories(self):
-        # Display self.current_categorization_scheme
-        if not self.current_categorization_scheme:
-            messagebox.showinfo("No Scheme", "No categorization scheme has been used or loaded by this plugin yet.")
-            return
+        scheme_str = json.dumps(self.current_categorization_scheme, indent=2)
+        if not scheme_str or scheme_str == '{}': scheme_str = "No scheme loaded or scheme is empty."
 
-        categories_text = "Current Evidence Categorization Scheme:\n\n"
-        for folder, keywords in self.current_categorization_scheme.items():
-            categories_text += f"Category Folder: {folder}\n"
-            categories_text += f"  Keywords (for filename matching): {', '.join(keywords) if keywords else 'N/A'}\n\n"
+        try:
+            # Ensure tk and messagebox are available if this method is called.
+            # These should have been checked in create_ui_elements, but good to be safe.
+            import tkinter as tk
+            from tkinter import messagebox
 
-        popup = tk.Toplevel()
-        popup.title("Current Categorization Scheme")
-        popup.geometry("700x500")
-        text_widget = tk.Text(popup, wrap=tk.WORD, font=("Arial", 11))
-        text_widget.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        text_widget.insert(tk.END, categories_text)
-        text_widget.config(state=tk.DISABLED)
+            top = tk.Toplevel()
+            top.title("Current Categorization Scheme")
+            txt = tk.Text(top, wrap=tk.WORD, height=20, width=60)
+            txt.insert(tk.END, scheme_str)
+            txt.config(state=tk.DISABLED)
+            txt_scroll = ttk.Scrollbar(top, command=txt.yview) # Use ttk.Scrollbar if ttk is preferred
+            txt['yscrollcommand'] = txt_scroll.set
+            txt.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            txt_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        except Exception as e:
+             self.logger.error(f"Failed to display categorization scheme UI: {e}")
+             messagebox.showinfo("Categorization Scheme", scheme_str) # Fallback
+
 
     def run_analysis_ui(self):
-        if not (hasattr(self, "core") and self.core and self.core.async_event_loop): # Corrected hasattr
-            self.status_label.config(text="Error: Core not fully available.")
-            messagebox.showerror("Core Error", "LCAS Core not ready for plugin UI action.")
+        if not (hasattr(self, "core") and self.core and self.core.async_event_loop):
+            if hasattr(self, 'status_label'): self.status_label.config(text="Error: Core not ready.")
+            else: self.logger.error("UI run failed: Core not ready.")
             return
 
-        self.status_label.config(text="Categorizing (UI triggered)...")
+        if hasattr(self, 'status_label'): self.status_label.config(text="Determining categories (UI)...")
 
-        # For UI-triggered run, we need to get the categorization_scheme.
-        # This should ideally come from LCASConfig or a dedicated UI section.
-        # For now, let's assume it's in core.config.categorization_scheme
-        # or we use a default if not found.
+        processed_files_for_ui = {}
+        if hasattr(self.core, 'analysis_results'):
+            pd_results = self.core.analysis_results.get("Pattern Discovery", {}).get("result", {})
+            if pd_results.get("success") and isinstance(pd_results.get("processed_files_output"), dict):
+                processed_files_for_ui = pd_results["processed_files_output"]
+
+            if not processed_files_for_ui:
+                ai_wrapper_results = self.core.analysis_results.get("lcas_ai_wrapper_plugin", {}).get("result", {})
+                if ai_wrapper_results.get("success") and isinstance(ai_wrapper_results.get("processed_files_output"), dict):
+                    processed_files_for_ui = ai_wrapper_results["processed_files_output"]
+                elif ai_wrapper_results.get("success") and isinstance(ai_wrapper_results.get("ai_enriched_processed_files"), dict):
+                    processed_files_for_ui = ai_wrapper_results["ai_enriched_processed_files"]
+
+            if not processed_files_for_ui:
+                content_ext_results = self.core.analysis_results.get("Content Extraction", {}).get("result", {})
+                if content_ext_results.get("success") and isinstance(content_ext_results.get("processed_files_output"), dict):
+                     processed_files_for_ui = content_ext_results["processed_files_output"]
+
+        if not processed_files_for_ui:
+            messagebox.showerror("Input Missing", "No 'processed_files' found in prior results from relevant plugins.");
+            if hasattr(self, 'status_label'): self.status_label.config(text="Error: No processed_files.")
+            return
+
+        processed_files_fad_instances = {}
+        for k,v_dict in processed_files_for_ui.items():
+            if isinstance(v_dict, dict):
+                try: processed_files_fad_instances[k] = FileAnalysisData(**v_dict)
+                except Exception as e: self.logger.warning(f"Could not cast dict to FAD for {k} in UI run: {e}"); continue
+            elif isinstance(v_dict, FileAnalysisData):
+                 processed_files_fad_instances[k] = v_dict
+            else: self.logger.warning(f"Item {k} is not a dict or FAD, skipping.")
+
+        if not processed_files_fad_instances :
+            messagebox.showerror("Input Error", "Could not form FileAnalysisData instances from prior results.");
+            if hasattr(self, 'status_label'): self.status_label.config(text="Error: FAD conversion failed.")
+            return
+
         categorization_scheme_from_config = {}
         if hasattr(self.core.config, 'categorization_scheme') and isinstance(self.core.config.categorization_scheme, dict):
             categorization_scheme_from_config = self.core.config.categorization_scheme
         else:
-            # Fallback to a very basic default if not in config for UI run
-            self.logger.warning("UI run: 'categorization_scheme' not found in core config. Using a basic default.")
-            categorization_scheme_from_config = {
-                "IMPORTANT_DOCS": ["important", "key", "critical"],
-                "FINANCIAL": ["bank", "statement", "tax", "invoice"]
-            }
-            # Inform user about fallback?
-            messagebox.showinfo("Categorization Info", "Using a default categorization scheme as none was found in the main configuration for this UI action.")
+            self.logger.warning("No categorization_scheme found in LCASConfig or it's not a dict. Using empty scheme for UI run.")
+            messagebox.showwarning("Scheme Missing", "No categorization scheme found in configuration. Defaulting to 'FOR_HUMAN_REVIEW'.")
 
+        target_dir = self.core.config.target_directory if hasattr(self.core.config, 'target_directory') else "."
 
         async def run_and_update():
-            source_dir = self.core.config.source_directory
-            target_dir = self.core.config.target_directory
-            if not source_dir or not target_dir:
-                messagebox.showerror("Configuration Missing", "Source and Target directories must be set.")
-                self.status_label.config(text="Config missing.")
-                return
+            result = await self.analyze({"processed_files": processed_files_fad_instances,
+                                         "target_directory": target_dir,
+                                         "categorization_scheme": categorization_scheme_from_config })
+            def update_ui_callback():
+                if hasattr(self, 'status_label'):
+                    if result.get("success"): self.status_label.config(text="Categorization complete (UI).")
+                    else: self.status_label.config(text=f"Categorization error (UI): {result.get('message','Unknown')}")
+                messagebox.showinfo("Categorization Result", f"Categorization finished. Status: {result.get('status')}\nFiles Processed: {result.get('summary',{}).get('files_processed','N/A')}\nFiles Categorized: {result.get('summary',{}).get('files_categorized_mapped','N/A')}")
 
-            result = await self.analyze({
-                "source_directory": source_dir,
-                "target_directory": target_dir,
-                "categorization_scheme": categorization_scheme_from_config
-            })
-
-            def update_ui_after_run():
-                if result.get("error"):
-                    self.status_label.config(text=f"Error: {result['error']}")
-                    messagebox.showerror("Categorization Error", result['error'])
-                else:
-                    summary = result.get("summary", {})
-                    msg = f"Categorized: {summary.get('files_categorized',0)}/{summary.get('files_processed',0)}. Review: {summary.get('files_for_human_review',0)}"
-                    self.status_label.config(text=msg)
-                    messagebox.showinfo("Categorization Complete", msg)
-
-            if hasattr(self.core, 'root') and self.core.root:
-                 self.core.root.after(0, update_ui_after_run)
-            else:
-                self.status_label.config(text="Processing complete (UI ref missing).")
+            if hasattr(self.core, 'root') and self.core.root: self.core.root.after(0, update_ui_callback)
+            elif hasattr(self.core, 'main_loop') and self.core.main_loop : self.core.main_loop.call_soon_threadsafe(update_ui_callback) # Check main_loop exists
+            else: self.logger.info("UI update callback skipped (no root or main_loop).")
 
         asyncio.run_coroutine_threadsafe(run_and_update(), self.core.async_event_loop)

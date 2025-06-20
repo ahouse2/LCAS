@@ -753,7 +753,7 @@ class EnhancedAnthropicProvider(ConfigurableAIProvider):
     def _select_model(self) -> str:
         """Select Anthropic model based on user settings"""
         if self.user_settings.analysis_depth == "comprehensive":
-            return "claude-4-opus-20240229"
+            return "claude-3-opus-20240229"
         elif self.user_settings.analysis_depth == "standard":
             return self.config.model or "claude-3-sonnet-20240229"
         else:
@@ -1062,6 +1062,113 @@ class EnhancedAIFoundationPlugin:
 
         # Initialize agents
         self.initialize_agents()
+
+    async def execute_custom_prompt(self, system_prompt: str, user_prompt: str,
+                                  context_for_ai_run: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Executes a custom prompt using the preferred provider or a specified one.
+        Bypasses the standard agent/analysis_type prompt generation from ConfigurableAIProvider.
+        """
+        if context_for_ai_run is None: context_for_ai_run = {}
+
+        provider_name_to_use = context_for_ai_run.get("provider_override", self.user_settings.preferred_provider)
+        target_provider: Optional[ConfigurableAIProvider] = self.providers.get(provider_name_to_use)
+
+        # Fallback logic
+        if not target_provider or not target_provider.is_available():
+            logger.warning(f"Target AI provider '{provider_name_to_use}' for custom prompt is not available or configured. Trying fallbacks.")
+            for fb_provider_name in self.user_settings.fallback_providers:
+                fb_provider = self.providers.get(fb_provider_name)
+                if fb_provider and fb_provider.is_available():
+                    logger.info(f"Using fallback provider '{fb_provider_name}' for custom prompt.")
+                    target_provider = fb_provider
+                    provider_name_to_use = fb_provider_name
+                    break
+            if not target_provider or not target_provider.is_available(): # Check again after trying fallbacks
+                return {"success": False, "error": f"No available AI provider for custom prompt (tried {provider_name_to_use} and fallbacks {self.user_settings.fallback_providers})."}
+
+        logger.info(f"Executing custom prompt via provider: {provider_name_to_use}, task: {context_for_ai_run.get('task', 'custom_task')}")
+
+        # Rate limiting
+        if self.rate_limiter:
+            can_proceed = await self.rate_limiter.check_and_wait_if_needed()
+            if not can_proceed:
+                return {"success": False, "error": "Rate limit exceeded for custom prompt.", "status": "rate_limited"}
+
+        try:
+            model_to_use = target_provider._select_model()
+            temperature = target_provider._get_temperature()
+            analysis_type_for_max_tokens = context_for_ai_run.get("analysis_type_for_max_tokens", "custom_prompt_task")
+            max_tokens_for_call = target_provider._get_max_tokens(analysis_type_for_max_tokens)
+
+            api_response_obj = None
+            response_content_str = ""
+            tokens_used_val = 0
+            cost_val = 0.0
+
+            if isinstance(target_provider, EnhancedOpenAIProvider) or isinstance(target_provider, GoogleAIProvider):
+                 messages_for_openai_like = []
+                 if system_prompt: messages_for_openai_like.append({"role": "system", "content": system_prompt})
+                 messages_for_openai_like.append({"role": "user", "content": user_prompt})
+
+                 api_response_obj = await target_provider.client.chat.completions.create(
+                     model=model_to_use, messages=messages_for_openai_like,
+                     temperature=temperature, max_tokens=max_tokens_for_call
+                 )
+                 response_content_str = api_response_obj.choices[0].message.content
+                 tokens_used_val = api_response_obj.usage.total_tokens if api_response_obj.usage else 0
+                 cost_val = tokens_used_val * getattr(target_provider.config, 'cost_per_token', 0.00001)
+
+            elif isinstance(target_provider, EnhancedAnthropicProvider):
+                api_response_obj = await target_provider.client.messages.create(
+                    model=model_to_use, max_tokens=max_tokens_for_call, temperature=temperature,
+                    system=system_prompt if system_prompt else None,
+                    messages=[{"role": "user", "content": user_prompt}]
+                )
+                response_content_str = api_response_obj.content[0].text
+                tokens_used_val = len((system_prompt or "").split() + user_prompt.split() + response_content_str.split()) # Estimate
+                cost_val = tokens_used_val * getattr(target_provider.config, 'cost_per_token', 0.000003) # Estimate
+
+            elif isinstance(target_provider, EnhancedLocalModelProvider):
+                 # For Ollama /api/generate endpoint (non-chat)
+                 # Construct a single prompt string as typically expected by /api/generate
+                 full_prompt_for_local = ""
+                 if system_prompt:
+                     full_prompt_for_local += f"System: {system_prompt}\n"
+                 full_prompt_for_local += f"User: {user_prompt}"
+
+                 payload = {
+                     "model": model_to_use,
+                     "prompt": full_prompt_for_local, # Use combined prompt
+                     "temperature":temperature,
+                     # "max_tokens": max_tokens_for_call, # max_tokens is not a standard Ollama /api/generate param, use num_predict
+                     "options": {"num_predict": max_tokens_for_call, "temperature": temperature},
+                     "stream":False
+                 }
+                 async with httpx.AsyncClient(timeout=getattr(target_provider.config, 'timeout', 120.0)) as client:
+                    local_api_response = await client.post(f"{target_provider.base_url}/api/generate", json=payload)
+                    local_api_response.raise_for_status()
+                    api_response_obj = local_api_response.json()
+                 response_content_str = api_response_obj.get('response','')
+                 tokens_used_val = len(system_prompt.split() + user_prompt.split() + response_content_str.split()) # Estimate
+                 cost_val = tokens_used_val * getattr(target_provider.config, 'cost_per_token', 0)
+            else:
+                logger.error(f"Custom prompt execution not implemented for provider type: {type(target_provider)}")
+                return {"success": False, "error": f"Custom prompt for {type(target_provider)} not implemented."}
+
+            target_provider.total_tokens_used += tokens_used_val
+            target_provider.total_cost += cost_val
+            target_provider.success_count += 1
+            if self.rate_limiter:
+                await self.rate_limiter.record_request(tokens_used=tokens_used_val, cost=cost_val, success=True)
+
+            return {"success": True, "response": response_content_str, "provider": provider_name_to_use, "model_used": model_to_use, "tokens_used": tokens_used_val, "cost": cost_val}
+        except Exception as e:
+            logger.error(f"Error executing custom prompt with {provider_name_to_use}: {e}", exc_info=True)
+            if target_provider: target_provider.error_count += 1
+            if self.rate_limiter:
+                await self.rate_limiter.record_request(tokens_used=0, cost=0, success=False, error_type=type(e).__name__)
+            return {"success": False, "error": str(e)}
 
     def load_configuration(self):
         """Load comprehensive AI configuration"""

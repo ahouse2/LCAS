@@ -1,186 +1,156 @@
 #!/usr/bin/env python3
-"""
-LCAS AI Wrapper Plugin
-Integrates the EnhancedAIFoundationPlugin into the LCAS plugin system.
-"""
-
-import asyncio
-import logging
-from typing import Dict, List, Any, Optional
-from pathlib import Path # Added for path resolution
-
-from lcas2.core import AnalysisPlugin, LCASCore, LCASConfig, CaseTheoryConfig # Updated import
+"""LCAS AI Wrapper Plugin. Integrates EnhancedAIFoundationPlugin."""
+import logging; from typing import Dict, List, Any, Optional; from pathlib import Path; import asyncio
+from dataclasses import asdict # Added asdict for output
+from lcas2.core import AnalysisPlugin, LCASCore, LCASConfig, CaseTheoryConfig
+from lcas2.core.data_models import FileAnalysisData # Import the model
 from .ai_integration_plugin import EnhancedAIFoundationPlugin, AIConfigSettings
 
 logger = logging.getLogger(__name__)
-
-
 class LCASAIWrapperPlugin(AnalysisPlugin):
-    """
-    Wrapper plugin to integrate the advanced AI capabilities.
-    """
-
     def __init__(self):
         self.ai_foundation: Optional[EnhancedAIFoundationPlugin] = None
         self.lcas_core: Optional[LCASCore] = None
-
     @property
-    def name(self) -> str:
-        return "lcas_ai_wrapper_plugin"
-
+    def name(self) -> str: return "lcas_ai_wrapper_plugin" # Keep original name for now if other plugins depend on it
     @property
-    def version(self) -> str:
-        return "1.1.0" # Version updated
-
+    def version(self) -> str: return "1.2.0" # Updated
     @property
-    def description(self) -> str:
-        return "Integrates advanced AI analysis capabilities using settings from LCASConfig and ai_config.json."
-
+    def description(self) -> str: return "Integrates AI analysis, populating FileAnalysisData objects."
     @property
-    def dependencies(self) -> List[str]:
-        # Informational; actual dependencies are managed by the project environment.
-        return ["openai", "anthropic", "httpx", "requests"] # httpx and requests are for local models if used
+    def dependencies(self) -> List[str]: return ["Content Extraction"]
 
     async def initialize(self, core_app: LCASCore) -> bool:
-        """Initialize the plugin and the wrapped AI foundation plugin."""
         self.lcas_core = core_app
-        logger.info(f"{self.name}: Initializing...")
+        self.logger = core_app.logger.getChild(self.name)
+        self.logger.info(f"{self.name}: Initializing...")
         try:
-            # Determine the absolute path for ai_config.json
-            # ai_config_path in LCASConfig is relative to project root.
-            project_root = Path(__file__).parent.parent.parent # Assumes this plugin is in LCAS_2/lcas2/plugins
-            ai_conf_path_str = self.lcas_core.config.ai_config_path
-            absolute_ai_config_path = project_root / ai_conf_path_str
+            # Ensure config path for AI foundation is absolute relative to project root
+            project_root = Path(__file__).resolve().parent.parent.parent # LCAS_2
+            ai_conf_path_str = getattr(self.lcas_core.config, ai_config_path, config/ai_config.json)
 
-            logger.info(f"{self.name}: Loading AI Foundation with config: {absolute_ai_config_path}")
+            abs_ai_cfg_path = ai_conf_path_str
+            if not Path(ai_conf_path_str).is_absolute():
+                abs_ai_cfg_path = str((project_root / ai_conf_path_str).resolve())
 
-            self.ai_foundation = EnhancedAIFoundationPlugin(config_path=str(absolute_ai_config_path))
-
-            if not self.ai_foundation.config: # Check if underlying config loaded
-                logger.error(f"{self.name}: Failed to load AI foundation's internal configuration from {absolute_ai_config_path}.")
+            self.ai_foundation = EnhancedAIFoundationPlugin(config_path=abs_ai_cfg_path)
+            if not self.ai_foundation or not self.ai_foundation.config: # Check if config loaded
+                self.logger.error(f"{self.name}: AI Foundation config failed to load from {abs_ai_cfg_path}.")
                 return False
-
-            # Synchronize AI foundation's user_settings with LCASConfig
             self._sync_ai_user_settings()
-
-            status = self.ai_foundation.get_comprehensive_status()
-            available_providers = [p for p, s in status.get("providers", {}).items() if s.get("available")]
-            if not available_providers:
-                logger.warning(f"{self.name}: No AI providers seem to be available/configured in '{absolute_ai_config_path}'. Ensure API keys are set.")
-            else:
-                logger.info(f"{self.name}: Available AI providers: {available_providers}")
-
-            logger.info(f"{self.name}: Initialized successfully.")
+            self.logger.info(f"{self.name}: Initialized successfully with AI config: {abs_ai_cfg_path}.")
             return True
         except Exception as e:
-            logger.error(f"{self.name}: Error during initialization: {e}", exc_info=True)
+            self.logger.error(f"{self.name}: Error during initialization: {e}", exc_info=True)
             return False
 
     def _sync_ai_user_settings(self):
-        """Synchronizes AIFoundationPlugin's user_settings with LCASCore's config."""
-        if not self.ai_foundation or not self.lcas_core:
-            return
-
+        if not self.ai_foundation or not self.lcas_core or not hasattr(self.lcas_core, config): return
         lcas_conf = self.lcas_core.config
-        ai_user_settings_updates = {}
+        updates = {}
+        # Sync relevant LCASConfig settings to AIConfigSettings
+        if hasattr(lcas_conf, case_theory) and hasattr(lcas_conf.case_theory, case_type):
+            updates[case_type] = lcas_conf.case_theory.case_type
+        if hasattr(lcas_conf, ai_analysis_depth):
+            updates[analysis_depth] = lcas_conf.ai_analysis_depth
+        if hasattr(lcas_conf, ai_confidence_threshold):
+            updates[confidence_threshold] = lcas_conf.ai_confidence_threshold
 
-        if hasattr(lcas_conf, 'case_theory') and isinstance(lcas_conf.case_theory, CaseTheoryConfig):
-            ai_user_settings_updates['case_type'] = lcas_conf.case_theory.case_type
-
-        if hasattr(lcas_conf, 'ai_analysis_depth'):
-            ai_user_settings_updates['analysis_depth'] = lcas_conf.ai_analysis_depth
-
-        if hasattr(lcas_conf, 'ai_confidence_threshold'):
-            ai_user_settings_updates['confidence_threshold'] = lcas_conf.ai_confidence_threshold
-
-        # Add any other relevant mappings here
-        # Example: if LCASConfig had a 'jurisdiction' field for AI
-        # if hasattr(lcas_conf, 'jurisdiction_for_ai'):
-        #    ai_user_settings_updates['jurisdiction'] = lcas_conf.jurisdiction_for_ai
-
-        if ai_user_settings_updates:
-            self.ai_foundation.update_user_settings(**ai_user_settings_updates)
-            logger.info(f"{self.name}: Synchronized AI Foundation user_settings: {ai_user_settings_updates}")
-
+        if updates and hasattr(self.ai_foundation, update_user_settings):
+            self.ai_foundation.update_user_settings(**updates)
+            self.logger.info(f"AI user settings synced with LCASConfig: {updates}")
 
     async def cleanup(self) -> None:
-        """Cleanup resources."""
-        logger.info(f"{self.name}: Cleaning up.")
-        self.ai_foundation = None # Allow GC
+        self.logger.info(f"{self.name}: Cleaning up.")
+        self.ai_foundation = None
         self.lcas_core = None
 
     async def analyze(self, data: Any) -> Dict[str, Any]:
-        """
-        Perform AI analysis on the provided data.
-        'data' is expected to be a dictionary potentially containing:
-        - 'file_content': The text content of the file to analyze.
-        - 'file_path': The path to the file being analyzed.
-        - 'text_to_analyze': Alternative to file_content for direct text.
-        - 'analysis_type': Specific type of analysis for AI (e.g., 'document_summary', 'legal_theory_check').
-                           If not provided, EnhancedAIFoundationPlugin might run its default agent sequence.
-        - 'case_context': Optional dictionary with runtime case-specific context.
-        """
         if not self.ai_foundation:
-            logger.error(f"{self.name}: AI Foundation not initialized.")
-            return {"error": "AI Foundation not initialized", "success": False}
+            return {"plugin":self.name, "status":"error", "success": False, "error": "AI Foundation not initialized"}
+        self._sync_ai_user_settings() # Ensure settings are current before analysis
 
-        # Ensure settings are fresh if config could change dynamically (e.g. via GUI)
-        self._sync_ai_user_settings()
+        processed_files_input: Dict[str, Any] = data.get("processed_files", {}) # Expects dicts that can be FileAnalysisData
+        if not processed_files_input:
+            return {"plugin":self.name, "status":"no_data", "success": False, "error": "No processed_files data provided."}
 
-        content_to_analyze = data.get("file_content", data.get("text_to_analyze"))
-        file_path = data.get("file_path", "unknown_source")
-        # analysis_task_type = data.get("analysis_type") # For more granular control in future
+        output_fad_dict: Dict[str, FileAnalysisData] = {} # To store FAD instances
+        files_analyzed_count = 0
+        files_failed_ai = 0
 
-        if content_to_analyze is None: # Check for None explicitly, as empty string might be valid
-            logger.warning(f"{self.name}: No content provided for AI analysis (file_path: {file_path}).")
-            return {"error": "No content (file_content or text_to_analyze) provided.", "file_path": file_path, "success": False}
+        for file_path_str, file_data_dict_or_obj in processed_files_input.items():
+            fad_instance: Optional[FileAnalysisData] = None
+            if isinstance(file_data_dict_or_obj, FileAnalysisData):
+                fad_instance = file_data_dict_or_obj
+            elif isinstance(file_data_dict_or_obj, dict):
+                try:
+                    fad_instance = FileAnalysisData(**file_data_dict_or_obj)
+                except TypeError as te:
+                    self.logger.warning(f"Could not cast dict to FileAnalysisData for {file_path_str}: {te}, skipping AI.")
+                    continue
+            else:
+                self.logger.warning(f"Unexpected data type for file {file_path_str} in processed_files. Expected dict or FileAnalysisData, got {type(file_data_dict_or_obj)}. Skipping AI.")
+                continue
 
-        # Prepare runtime context for AI
-        lcas_conf = self.lcas_core.config
-        runtime_context = data.get("case_context", {})
-        if lcas_conf:
-            runtime_context.setdefault("lcas_case_name", lcas_conf.case_name)
-            runtime_context.setdefault("lcas_case_type", lcas_conf.case_theory.case_type)
-            # Add other details from lcas_conf.case_theory if they are relevant at runtime
+            output_fad_dict[file_path_str] = fad_instance # Add to output dict
 
-        logger.info(f"{self.name}: Analyzing content for: {file_path} with AI.")
-        logger.debug(f"{self.name}: AI User Settings: {self.ai_foundation.user_settings}")
-        logger.debug(f"{self.name}: Runtime Context for AI: {runtime_context}")
+            content_to_analyze = fad_instance.content if fad_instance.content else fad_instance.summary_auto
+            if not content_to_analyze:
+                self.logger.debug(f"No content for AI in {file_path_str}, skipping AI for this file.")
+                continue
 
+            self.logger.info(f"{self.name}: AI analyzing {file_path_str}")
+            try:
+                runtime_context = {
+                    "lcas_case_name": self.lcas_core.config.case_name if self.lcas_core and hasattr(self.lcas_core.config, case_name) else "Unknown Case",
+                    "lcas_case_type": self.lcas_core.config.case_theory.case_type if self.lcas_core and hasattr(self.lcas_core.config, case_theory) else "general"
+                }
 
-        try:
-            # EnhancedAIFoundationPlugin.analyze_file_content runs multiple agents.
-            # If a more specific agent call is needed, the 'data' dict would need to specify that,
-            # and this wrapper would need logic to call the specific agent method on ai_foundation.
-            # For now, using the general analyze_file_content which runs configured agents.
-            ai_results = await self.ai_foundation.analyze_file_content(
-                content=content_to_analyze,
-                file_path=file_path,
-                context=runtime_context
-            )
+                # This call returns a dict like: {"document_intelligence": {...}, "legal_analysis": {...}} or error dict
+                raw_ai_output = await self.ai_foundation.analyze_file_content(
+                    content=content_to_analyze, file_path=file_path_str, context=runtime_context)
 
-            if ai_results.get("rate_limited"):
-                logger.warning(f"{self.name}: AI analysis for {file_path} was skipped due to rate limits: {ai_results.get('message')}")
-                return {"status": "skipped_rate_limited", "message": ai_results.get("message"), "file_path": file_path, "success": False}
+                fad_instance.ai_analysis_raw = raw_ai_output
 
-            final_result = {
-                "status": "success",
-                "file_path": file_path,
-                "provider_results": ai_results, # Contains results from each agent ran by EnhancedAIFoundationPlugin
-                "summary": "AI analysis performed.", # Generic summary, can be improved
-                "success": True
-            }
+                if isinstance(raw_ai_output, dict) and raw_ai_output.get("success", True): # Assume success if not explicitly false
+                    # Extract some common fields for easier access
+                    doc_intel_findings = raw_ai_output.get("document_intelligence", {}).get("findings", {}) # Example path
+                    if isinstance(doc_intel_findings, dict) and doc_intel_findings.get("summary"):
+                        fad_instance.ai_summary = doc_intel_findings["summary"]
 
-            # Attempt to extract a more specific summary, e.g., from document_intelligence agent
-            if isinstance(ai_results, dict):
-                doc_intel_res = ai_results.get("document_intelligence", {}).get("findings", {})
-                if isinstance(doc_intel_res, dict) and "summary" in doc_intel_res:
-                    final_result["summary"] = doc_intel_res["summary"]
-                elif isinstance(doc_intel_res, str) and doc_intel_res: # If findings itself is a string summary
-                    final_result["summary"] = doc_intel_res[:500] # Truncate if too long
+                    all_tags = set(fad_instance.ai_tags or [])
+                    for agent_key, agent_result in raw_ai_output.items(): # Iterate through agent results
+                        if isinstance(agent_result, dict):
+                            # Tags might be at top level of agent result or nested in findings
+                            current_tags = agent_result.get("tags", [])
+                            if isinstance(current_tags, list): all_tags.update(current_tags)
 
-            return final_result
+                            findings = agent_result.get("findings", {})
+                            if isinstance(findings, dict):
+                                current_findings_tags = findings.get("tags", [])
+                                if isinstance(current_findings_tags, list): all_tags.update(current_findings_tags)
 
-        except Exception as e:
-            logger.error(f"{self.name}: Error during AI analysis for {file_path}: {e}", exc_info=True)
-            return {"error": str(e), "file_path": file_path, "success": False}
+                                if isinstance(findings.get("evidence_category"),str):
+                                    fad_instance.ai_suggested_category = findings.get("evidence_category")
+
+                                key_entities = findings.get("key_entities", findings.get("entities", []))
+                                if isinstance(key_entities, list): fad_instance.ai_key_entities.extend(key_entities)
+
+                    fad_instance.ai_tags = list(all_tags)
+                    files_analyzed_count +=1
+                else: # AI analysis for this file failed or returned unexpected structure
+                     error_detail = raw_ai_output.get("error", "Unknown AI analysis error") if isinstance(raw_ai_output, dict) else "Malformed AI response"
+                     fad_instance.error_log.append(f"AI Analysis Error: {error_detail}")
+                     files_failed_ai +=1
+
+            except Exception as e:
+                self.logger.error(f"{self.name}: AI analysis system error for {file_path_str}: {e}", exc_info=True)
+                fad_instance.error_log.append(f"AI Analysis System Error: {e}")
+                files_failed_ai +=1
+
+        return {"plugin": self.name,
+                "status": "completed" if files_failed_ai == 0 else "completed_with_errors",
+                "success": True, # Plugin itself succeeded in its job of orchestration
+                "summary": {"files_ai_analyzed": files_analyzed_count, "files_ai_failed": files_failed_ai},
+                "processed_files_output": {k: asdict(v) for k,v in output_fad_dict.items()}
+               }
