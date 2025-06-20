@@ -259,7 +259,10 @@ def main():
 
         feat/ai-integration-fix
 
+        feat/ai-integration-fix
+
       feat/ai-integration-fix
+        main
         main
         main
         main
@@ -286,9 +289,12 @@ def main():
 
         feat/ai-integration-fix
 
+        feat/ai-integration-fix
+
                 print("\n Analysis failed. Check the log file for details.")
         main
 
+        main
         main
         main
         main
@@ -327,6 +333,9 @@ def main():
         feat/ai-integration-fix
 
         feat/ai-integration-fix
+
+        feat/ai-integration-fix
+        main
         main
         main
         main
@@ -336,6 +345,8 @@ def main():
         elif choice == '5': # Ensuring 8-space indent
             # View Configuration
             view_configuration() # Ensuring 12-space indent
+
+        feat/ai-integration-fix
 
         feat/ai-integration-fix
 
@@ -362,6 +373,7 @@ def main():
         main
         main
         main
+        main
         elif choice == '6':
             # Exit
             print("\n👋 Thank you for using LCAS!")
@@ -372,6 +384,9 @@ def main():
             print("\n❌ Invalid choice. Please enter 1-6.")
 
 if __name__ == "__main__":
+        feat/ai-integration-fix
+    main()
+
         feat/ai-integration-fix
     main()
 
@@ -445,6 +460,7 @@ elif choice == '4':
 
     config_file = create_config_file(source, target) # Corrected line 270 and added arguments
        main
+        main
         main
         main
         main

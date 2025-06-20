@@ -81,6 +81,9 @@ def start_preservation(self):
         feat/ai-integration-fix
 
         feat/ai-integration-fix
+
+        feat/ai-integration-fix
+        main
         main
         main
         main
@@ -104,6 +107,8 @@ def start_preservation(self):
         f"To:\n{target_path}\n\n"
         f"Continue?"
     )
+        feat/ai-integration-fix
+
         feat/ai-integration-fix
 
         feat/ai-integration-fix
@@ -144,6 +149,7 @@ def start_preservation(self):
         
         self._set_processing_state(True, "preservation")
         self.processing_thread.start()
+        main
         main
         main
         main
