@@ -220,9 +220,7 @@ class PluginManager:
             try:
                 await plugin.cleanup()
             except Exception as e:
-                self.logger.error(
-                    f"Error cleaning up plugin {
-                        plugin.name}: {e}")
+                self.logger.error(f"Error cleaning up plugin {plugin.name}: {e}")
 
 
 class EventBus:

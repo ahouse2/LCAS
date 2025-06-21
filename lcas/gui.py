@@ -289,8 +289,6 @@ class LCASMainGUI:
         ttk.Checkbutton(log_debug_frame, text="Debug Mode",
                         variable=self.debug_mode_var).grid(row=1, column=0, columnspan=2, sticky=tk.W, padx=10, pady=5)
 
-      main
-
         ttk.Label(
             log_debug_frame,
             text="Plugins Directory:").grid(
@@ -414,9 +412,7 @@ class LCASMainGUI:
             column=3,
             padx=10,
             pady=5)
-        
-        main
-        
+
         # Processing Options Frame
         proc_options_frame = ttk.LabelFrame(
             scrollable_frame, text="Processing Options")

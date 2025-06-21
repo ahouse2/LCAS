@@ -353,12 +353,7 @@ class PatternDiscoveryPlugin:
         self._refine_and_correlate_patterns()
         await self._synthesize_legal_theories()
 
-        logger.info(
-            f"Discovered {
-                len(
-                    self.discovered_patterns)} patterns and {
-                len(
-                    self.potential_theories)} potential theories.")
+        logger.info(f"Discovered {len(self.discovered_patterns)} patterns and {len(self.potential_theories)} potential theories.")
         return self.discovered_patterns, self.potential_theories
 
     def _get_text_snippet(

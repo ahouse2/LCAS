@@ -211,14 +211,7 @@ class ProgressTracker:
         """Update progress"""
         self.current += increment
         percentage = (self.current / self.total) * 100 if self.total > 0 else 0
-        print(
-            f"\r{
-                self.description}: {
-                self.current}/{
-                self.total} ({
-                    percentage:.1f}%)",
-            end="",
-            flush=True)
+        print(f"\r{self.description}: {self.current}/{self.total} ({percentage:.1f}%)", end="", flush=True)
 
     def complete(self):
         """Mark as complete"""

@@ -211,14 +211,9 @@ class LCASCore:
         index_file = folder_path / "folder_index.md"
         with open(index_file, 'w', encoding='utf-8') as f:
             f.write(f"# {folder_name.replace('_', ' ').title()}\n\n")
-            f.write(
-                f"Created: {
-                    datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+            f.write(f"Created: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
             f.write("## Purpose\n\n")
-            f.write(
-                f"This folder contains evidence related to: {
-                    folder_name.replace(
-                        '_', ' ').title()}\n\n")
+            f.write(f"This folder contains evidence related to: {folder_name.replace('_', ' ').title()}\n\n")
             f.write("## Files\n\n")
             f.write("Files will be listed here after processing.\n\n")
             f.write("## Statistics\n\n")

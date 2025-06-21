@@ -266,9 +266,7 @@ class LocalModelProvider(AIProviderInterface):
                 )
 
                 if response.status_code != 200:
-                    raise Exception(
-                        f"Local model API error: {
-                            response.status_code}")
+                    raise Exception(f"Local model API error: {response.status_code}")
 
                 result = response.json()
 
